@@ -26,6 +26,9 @@ public class GeminiScannerService {
     @Value("${gemini.api.key:}")
     private String configuredGeminiKey;
 
+    @Value("${ai.service.url:http://localhost:8088}")
+    private String aiServiceUrl;
+
     private final WeatherService weatherService;
     private final SoilMoistureService soilMoistureService;
     private final RestTemplate restTemplate = new RestTemplate();
@@ -70,11 +73,17 @@ public class GeminiScannerService {
 
         ScanResponse response = null;
 
+        // 1. If client provided custom Gemini key, execute Gemini LLM vision
         if (activeApiKey != null && !activeApiKey.trim().isEmpty() && !activeApiKey.equals("YOUR_GEMINI_KEY")) {
             response = executeWithModelFallback(file, prompt, activeApiKey);
         }
 
-        // Dynamic multi-crop pathology vision engine if API key is unconfigured or unavailable
+        // 2. Primary Engine: Dedicated Python AI Microservice (PlantVillage + ICAR Dataset)
+        if (response == null) {
+            response = callPythonAiService(file, cropHint, language);
+        }
+
+        // 3. Fallback: Dynamic multi-crop pathology vision engine if AI microservice is offline
         if (response == null) {
             response = dynamicMultiCropEngine(file, cropHint, targetLanguage);
         }
@@ -86,6 +95,39 @@ public class GeminiScannerService {
         response.setWeatherRiskNote(riskNote);
 
         return response;
+    }
+
+    private ScanResponse callPythonAiService(MultipartFile file, String cropHint, String language) {
+        try {
+            String url = aiServiceUrl.replaceAll("/+$", "") + "/predict";
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+            org.springframework.util.MultiValueMap<String, Object> body = new org.springframework.util.LinkedMultiValueMap<>();
+
+            org.springframework.core.io.ByteArrayResource fileResource = new org.springframework.core.io.ByteArrayResource(file.getBytes()) {
+                @Override
+                public String getFilename() {
+                    return file.getOriginalFilename() != null ? file.getOriginalFilename() : "leaf.jpg";
+                }
+            };
+
+            body.add("file", fileResource);
+            if (cropHint != null && !cropHint.trim().isEmpty()) {
+                body.add("crop_hint", cropHint.trim());
+            }
+            body.add("language", (language != null && language.equalsIgnoreCase("hi")) ? "hi" : "en");
+
+            HttpEntity<org.springframework.util.MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+            ResponseEntity<String> res = restTemplate.postForEntity(url, requestEntity, String.class);
+
+            if (res.getStatusCode().is2xxSuccessful() && res.getBody() != null) {
+                return objectMapper.readValue(res.getBody(), ScanResponse.class);
+            }
+        } catch (Exception e) {
+            System.err.println("Python AI Microservice unavailable (" + e.getMessage() + "), using fallback.");
+        }
+        return null;
     }
 
     private ScanResponse executeWithModelFallback(MultipartFile file, String prompt, String apiKey) {

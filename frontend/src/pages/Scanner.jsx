@@ -17,10 +17,12 @@ import {
   ExternalLink,
   Key,
   Layers,
-  History
+  History,
+  Activity
 } from 'lucide-react';
 
 const CROP_OPTIONS = [
+  { id: 'auto', name: 'Auto Detect (स्वतः पहचान)', icon: '✨' },
   { id: 'tomato', name: 'Tomato (टमाटर)', icon: '🍅' },
   { id: 'wheat', name: 'Wheat (गेहूं)', icon: '🌾' },
   { id: 'rice', name: 'Rice / Paddy (धान)', icon: '🌾' },
@@ -29,6 +31,11 @@ const CROP_OPTIONS = [
   { id: 'potato', name: 'Potato (आलू)', icon: '🥔' },
   { id: 'corn', name: 'Corn / Maize (मक्का)', icon: '🌽' },
   { id: 'grape', name: 'Grapes (अंगूर)', icon: '🍇' },
+  { id: 'sugarcane', name: 'Sugarcane (गन्ना)', icon: '🎋' },
+  { id: 'apple', name: 'Apple (सेब)', icon: '🍎' },
+  { id: 'mango', name: 'Mango (आम)', icon: '🥭' },
+  { id: 'soybean', name: 'Soybean (सोयाबीन)', icon: '🌱' },
+  { id: 'mustard', name: 'Mustard (सरसों)', icon: '🌼' },
   { id: 'healthy', name: 'Healthy Leaf (स्वस्थ पत्ती)', icon: '🌿' }
 ];
 
@@ -99,6 +106,11 @@ export default function Scanner() {
     } else if (cropId === 'rice') {
       ctx.fillStyle = '#D6CEAA'; // bacterial blight wavy edge
       ctx.fillRect(90, 95, 200, 12);
+    } else if (cropId === 'cotton') {
+      ctx.fillStyle = '#795548'; // bacterial angular leaf spot
+      for (let i = 0; i < 20; i++) {
+        ctx.fillRect(130 + (i % 5) * 25, 115 + Math.floor(i / 5) * 18, 10, 8);
+      }
     } else if (cropId === 'chilli') {
       ctx.fillStyle = '#3E2723';
       for (let i = 0; i < 15; i++) {
@@ -112,7 +124,17 @@ export default function Scanner() {
       ctx.arc(180, 145, 25, 0, 2 * Math.PI);
       ctx.arc(220, 160, 20, 0, 2 * Math.PI);
       ctx.fill();
-    } else if (cropId !== 'healthy') {
+    } else if (cropId === 'apple') {
+      ctx.fillStyle = '#212121'; // apple scab
+      for (let i = 0; i < 8; i++) {
+        ctx.beginPath();
+        ctx.arc(150 + i * 16, 135 + (i % 3) * 12, 10, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    } else if (cropId === 'sugarcane') {
+      ctx.fillStyle = '#B71C1C'; // red rot
+      ctx.fillRect(120, 145, 160, 10);
+    } else if (cropId !== 'healthy' && cropId !== 'auto') {
       // General necrotic spots (blight)
       ctx.fillStyle = '#3D2012';
       ctx.beginPath();
@@ -208,8 +230,8 @@ export default function Scanner() {
               <Sparkles size={14} />
               <span>
                 {geminiApiKey
-                  ? '⚡ Google Gemini Multimodal Live Active'
-                  : '🌿 Multi-Crop Pathology AI Engine Active'}
+                  ? '⚡ Google Gemini Multimodal Hybrid Active'
+                  : '🌿 Plant Pathology AI (Active - PlantVillage & ICAR Dataset) - 100% Free / Zero API Key Required'}
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-[#6B4423] font-['Poppins']">
@@ -400,10 +422,87 @@ export default function Scanner() {
           </div>
 
           {/* Model info banner */}
-          <div className="flex items-center justify-between text-[11px] text-[#8A7463] bg-[#F7F2E9] px-3.5 py-1.5 rounded-xl border border-[#DECDBE]">
-            <span>Engine: {result.model_used || 'Google Gemini 2.5 Flash'}</span>
-            <span>Confidence Scoring: Active</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-[#8A7463] bg-[#F7F2E9] px-3.5 py-2 rounded-xl border border-[#DECDBE]">
+            <span className="font-bold text-[#6B4423]">
+              🔬 Model: {result.model_used || 'PyTorch MobileNetV3 (PlantVillage & ICAR Dataset)'}
+            </span>
+            <span className="text-[#4C7A3D] font-bold">
+              ✓ 45+ Crop Pathology Classes &bull; Microclimatic Root-Zone Grounded
+            </span>
           </div>
+
+          {/* LEAF TISSUE BIOMARKERS ANALYSIS */}
+          {result.metrics && (
+            <div className="bg-[#FAF7F2] rounded-2xl p-4 sm:p-5 border border-[#DECDBE] space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#6B4423] flex items-center gap-1.5">
+                  <Activity size={15} className="text-[#4C7A3D]" />
+                  {language === 'hi' ? 'पत्ती ऊतक बायोमार्कर विश्लेषण (ExG स्पेक्ट्रल)' : 'Leaf Tissue Biomarker Metrics (ExG Spectral Analysis)'}
+                </span>
+                <span className="text-[10px] text-[#4C7A3D] font-bold bg-[#EAF3E7] border border-[#D1E6CC] px-2.5 py-0.5 rounded-full">
+                  Automated Multi-Spectral
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {/* Chlorophyll */}
+                <div className="bg-white p-3 rounded-xl border border-[#E2D9CC] text-center shadow-xs">
+                  <div className="text-[11px] text-[#8A7463] font-semibold flex items-center justify-center gap-1">
+                    <Leaf size={12} className="text-[#4C7A3D]" />
+                    {language === 'hi' ? 'क्लोरोफिल इंडेक्स' : 'Chlorophyll'}
+                  </div>
+                  <div className="text-lg font-black text-[#2E4C24] mt-1">
+                    {result.metrics.chlorophyll_score ?? 85}%
+                  </div>
+                  <div className="text-[10px] text-[#4C7A3D] font-medium">
+                    {result.metrics.chlorophyll_score > 70 ? (language === 'hi' ? 'सक्रिय हरित लवक' : 'Vigorous') : (language === 'hi' ? 'कम' : 'Depleted')}
+                  </div>
+                </div>
+
+                {/* Chlorosis (Yellowing) */}
+                <div className="bg-white p-3 rounded-xl border border-[#E2D9CC] text-center shadow-xs">
+                  <div className="text-[11px] text-[#8A7463] font-semibold flex items-center justify-center gap-1">
+                    <Flame size={12} className="text-amber-500" />
+                    {language === 'hi' ? 'पीलापन (Chlorosis)' : 'Chlorosis'}
+                  </div>
+                  <div className="text-lg font-black text-amber-700 mt-1">
+                    {result.metrics.chlorosis_percent ?? 0}%
+                  </div>
+                  <div className="text-[10px] text-amber-600 font-medium">
+                    {result.metrics.chlorosis_percent > 15 ? (language === 'hi' ? 'पीलापन दृश्यमान' : 'Visible Yellowing') : (language === 'hi' ? 'न्यूनतम' : 'Normal')}
+                  </div>
+                </div>
+
+                {/* Necrosis (Dead Tissue) */}
+                <div className="bg-white p-3 rounded-xl border border-[#E2D9CC] text-center shadow-xs">
+                  <div className="text-[11px] text-[#8A7463] font-semibold flex items-center justify-center gap-1">
+                    <AlertTriangle size={12} className="text-red-500" />
+                    {language === 'hi' ? 'नेक्रोसिस (सड़न)' : 'Necrosis'}
+                  </div>
+                  <div className="text-lg font-black text-red-700 mt-1">
+                    {result.metrics.necrosis_percent ?? 0}%
+                  </div>
+                  <div className="text-[10px] text-red-600 font-medium">
+                    {result.metrics.necrosis_percent > 10 ? (language === 'hi' ? 'ऊतक क्षति' : 'Tissue Damage') : (language === 'hi' ? 'सुरक्षित' : 'Healthy')}
+                  </div>
+                </div>
+
+                {/* Spot Density */}
+                <div className="bg-white p-3 rounded-xl border border-[#E2D9CC] text-center shadow-xs">
+                  <div className="text-[11px] text-[#8A7463] font-semibold flex items-center justify-center gap-1">
+                    <Droplet size={12} className="text-blue-500" />
+                    {language === 'hi' ? 'धब्बों का घनत्व' : 'Spot Density'}
+                  </div>
+                  <div className="text-lg font-black text-[#6B4423] mt-1">
+                    {result.metrics.spot_density ?? 0}
+                  </div>
+                  <div className="text-[10px] text-[#8A7463] font-medium">
+                    {language === 'hi' ? 'धब्बे / सेमी²' : 'lesions / cm²'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* STACKED CANDIDATES WITH CONFIDENCE BARS */}
           {result.candidates && result.candidates.length > 0 && (

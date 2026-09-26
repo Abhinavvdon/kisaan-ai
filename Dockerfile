@@ -1,4 +1,4 @@
-# Multi-Stage Dockerfile for KISAAN.AI on Render
+# Multi-Stage Dockerfile for KISAAN.AI on Render (with integrated Python AI Microservice)
 
 # ------------------------------------------------------------------------------
 # Stage 1: Build React + Vite Frontend
@@ -41,20 +41,40 @@ ENV GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx256m -XX:MaxMetaspaceSize=128m"
 RUN ./gradlew bootJar --no-daemon -x test
 
 # ------------------------------------------------------------------------------
-# Stage 3: Lightweight Production JRE Runtime
+# Stage 3: Lightweight Production JRE + Python ML Microservice Runtime
 # ------------------------------------------------------------------------------
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
 
-# Create directory for persistent local database storage if H2 is used
+# Install Python 3, venv, curl for health checks
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-venv \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up Python virtual environment and install lightweight ML requirements
+WORKDIR /app/ml-service
+COPY ml-service/requirements.txt ./
+RUN python3 -m venv /opt/ml-venv \
+    && /opt/ml-venv/bin/pip install --no-cache-dir -r requirements.txt
+
+# Copy ML service application code
+COPY ml-service/ ./
+
+WORKDIR /app
 RUN mkdir -p /app/data
 
 # Copy compiled JAR from backend builder stage
 COPY --from=backend-builder /app/backend/build/libs/*.jar app.jar
 
+# Copy and configure entrypoint script
+COPY entrypoint.sh ./
+RUN sed -i 's/\r$//' ./entrypoint.sh && chmod +x ./entrypoint.sh
+
 # Render assigns a dynamic port via $PORT (defaults to 8085 locally)
 ENV PORT=8085
 EXPOSE 8085
 
-# Fast container startup with tuned heap memory for Render free tier
-ENTRYPOINT ["java", "-Xmx300m", "-Xss512k", "-Djava.security.egd=file:/dev/./urandom", "-Dserver.port=${PORT}", "-jar", "app.jar"]
+ENTRYPOINT ["./entrypoint.sh"]

@@ -30,3 +30,15 @@ Thumbs.db
 backend/data/
 *.mv.db
 *.trace.db
+
+# Python & ML
+.venv/
+*/.venv/
+__pycache__/
+*/__pycache__/
+*.py[cod]
+*$py.class
+*.pt
+*.onnx
+ml-service/test_leaf.jpg
+

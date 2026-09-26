@@ -1,8 +1,10 @@
 package com.kisaan.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ScanResponse {
     @JsonProperty("candidates")
     private List<CandidateDiagnosis> candidates;
@@ -21,6 +23,12 @@ public class ScanResponse {
 
     @JsonProperty("model_used")
     private String modelUsed;
+
+    @JsonProperty("crop")
+    private String crop;
+
+    @JsonProperty("metrics")
+    private java.util.Map<String, Object> metrics;
 
     public ScanResponse() {}
 
@@ -41,4 +49,10 @@ public class ScanResponse {
 
     public String getModelUsed() { return modelUsed; }
     public void setModelUsed(String modelUsed) { this.modelUsed = modelUsed; }
+
+    public String getCrop() { return crop; }
+    public void setCrop(String crop) { this.crop = crop; }
+
+    public java.util.Map<String, Object> getMetrics() { return metrics; }
+    public void setMetrics(java.util.Map<String, Object> metrics) { this.metrics = metrics; }
 }

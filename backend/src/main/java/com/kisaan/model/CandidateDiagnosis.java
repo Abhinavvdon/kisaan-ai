@@ -1,7 +1,9 @@
 package com.kisaan.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class CandidateDiagnosis {
     @JsonProperty("disease_name")
     private String diseaseName;
@@ -14,6 +16,9 @@ public class CandidateDiagnosis {
 
     @JsonProperty("affected_area_description")
     private String affectedAreaDescription;
+
+    @JsonProperty("is_healthy")
+    private Boolean isHealthy;
 
     public CandidateDiagnosis() {}
 
@@ -35,4 +40,7 @@ public class CandidateDiagnosis {
 
     public String getAffectedAreaDescription() { return affectedAreaDescription; }
     public void setAffectedAreaDescription(String affectedAreaDescription) { this.affectedAreaDescription = affectedAreaDescription; }
+
+    public Boolean getIsHealthy() { return isHealthy; }
+    public void setIsHealthy(Boolean isHealthy) { this.isHealthy = isHealthy; }
 }
