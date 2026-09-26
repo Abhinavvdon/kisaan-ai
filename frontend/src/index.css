@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-cream: #F7F2E9;
+  --soil-brown: #6B4423;
+  --leaf-green: #4C7A3D;
+  --turmeric-orange: #C46A2B;
+  --sky-blue: #6E97AC;
+}
+
+body {
+  background-color: var(--bg-cream);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: #2C1E14;
+}
+
+/* Subtle furrow pattern for agriculture branding */
+.furrow-pattern {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(107, 68, 35, 0.035) 0px,
+    rgba(107, 68, 35, 0.035) 2px,
+    transparent 2px,
+    transparent 16px
+  );
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F7F2E9;
+}
+::-webkit-scrollbar-thumb {
+  background: #DECDBE;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #6B4423;
+}

@@ -1,0 +1,27 @@
+# Build and dependency directories
+node_modules/
+.gradle/
+build/
+dist/
+target/
+out/
+bin/
+
+# Environment and sensitive keys
+.env
+.env.local
+*.log
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.settings/
+.project
+.classpath
+
+# OS files
+.DS_Store
+Thumbs.db
