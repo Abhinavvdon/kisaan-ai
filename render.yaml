@@ -11,8 +11,8 @@ services:
       - key: PORT
         value: 10000
       - key: GEMINI_API_KEY
-        sync: false
+        value: demo
       - key: OPENWEATHERMAP_API_KEY
-        sync: false
+        value: demo
       - key: SPRING_PROFILES_ACTIVE
         value: default
