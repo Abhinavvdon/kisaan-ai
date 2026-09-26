@@ -135,10 +135,23 @@ export default function Scanner() {
     setLoading(true);
     setError(null);
 
+    let activeLat = '19.9975';
+    let activeLon = '73.7898';
+    try {
+      const savedLoc = localStorage.getItem('kisaan_selected_location');
+      if (savedLoc) {
+        const parsed = JSON.parse(savedLoc);
+        if (parsed.lat && parsed.lon) {
+          activeLat = String(parsed.lat);
+          activeLon = String(parsed.lon);
+        }
+      }
+    } catch (e) {}
+
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('lat', '19.9975');
-    formData.append('lon', '73.7898');
+    formData.append('lat', activeLat);
+    formData.append('lon', activeLon);
     formData.append('language', language === 'hi' ? 'hi' : 'en');
     formData.append('cropHint', selectedCrop);
     if (geminiApiKey) {

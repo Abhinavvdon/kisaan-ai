@@ -75,6 +75,12 @@ export default function Dashboard() {
   const { user } = useAuth();
 
   const [selectedLocation, setSelectedLocation] = useState(() => {
+    try {
+      const saved = localStorage.getItem('kisaan_selected_location');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn('Failed to parse saved location', e);
+    }
     if (user && user.district) {
       const match = EXPANDED_LOCATIONS.find((l) => l.name.toLowerCase() === user.district.toLowerCase());
       if (match) return match;
@@ -146,6 +152,9 @@ export default function Dashboard() {
         };
 
         setSelectedLocation(newLoc);
+        try {
+          localStorage.setItem('kisaan_selected_location', JSON.stringify(newLoc));
+        } catch (e) {}
         setGpsDetecting(false);
         setGpsStatus(`GPS Active: ${newLoc.name} (${lat.toFixed(3)}°N, ${lon.toFixed(3)}°E)`);
         setTimeout(() => setGpsStatus(null), 4000);
@@ -236,7 +245,12 @@ export default function Dashboard() {
                   value={selectedLocation.name}
                   onChange={(e) => {
                     const loc = EXPANDED_LOCATIONS.find((d) => d.name === e.target.value);
-                    if (loc) setSelectedLocation(loc);
+                    if (loc) {
+                      setSelectedLocation(loc);
+                      try {
+                        localStorage.setItem('kisaan_selected_location', JSON.stringify(loc));
+                      } catch (err) {}
+                    }
                   }}
                   className="bg-transparent text-xs font-bold text-[#6B4423] focus:outline-none cursor-pointer max-w-[170px]"
                 >

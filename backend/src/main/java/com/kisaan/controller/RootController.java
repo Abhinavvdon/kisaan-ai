@@ -1,14 +1,32 @@
 package com.kisaan.controller;
 
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.ResponseBody;
 
-@RestController
+@Controller
 public class RootController {
 
-    @GetMapping(value = "/", produces = MediaType.TEXT_HTML_VALUE)
-    public String index() {
+    private final Resource indexHtml = new ClassPathResource("static/index.html");
+
+    @GetMapping(value = { "/", "/scanner", "/saathi", "/schemes", "/auth", "/login", "/register" }, produces = MediaType.TEXT_HTML_VALUE)
+    @ResponseBody
+    public ResponseEntity<?> index() {
+        if (indexHtml.exists()) {
+            return ResponseEntity.ok()
+                    .contentType(MediaType.TEXT_HTML)
+                    .body(indexHtml);
+        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.TEXT_HTML)
+                .body(getGatewayHtml());
+    }
+
+    private String getGatewayHtml() {
         return """
             <!DOCTYPE html>
             <html lang="en">
