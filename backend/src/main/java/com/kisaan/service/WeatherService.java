@@ -89,8 +89,8 @@ public class WeatherService {
             }
             data.setForecast(forecastDays);
         } catch (Exception ex) {
-            // Forecast secondary call failed, attach basic forecast
-            data.setForecast(createDefaultForecast());
+            // Forecast secondary call failed, attach dynamic forecast
+            data.setForecast(createDynamicForecast(data.getTemperature(), data.getHumidity(), data.getCondition()));
         }
 
         data.setRainChance(data.getForecast() != null && !data.getForecast().isEmpty() ?
@@ -100,23 +100,90 @@ public class WeatherService {
     }
 
     private WeatherData generateRealisticWeather(double lat, double lon) {
+        long seed = Double.doubleToLongBits(lat * 100.0) ^ Double.doubleToLongBits(lon * 100.0);
+        java.util.Random rnd = new java.util.Random(seed);
+
+        double baseTemp;
+        int baseHumidity;
+        double baseWind;
+        int rainChance;
+        String condition;
+        String icon;
+        String brief;
+
+        if (lat >= 30.0) {
+            // Himalayan / High Northern Zone (J&K, Ladakh, Himachal, Uttarakhand hills)
+            baseTemp = 16.5 + (rnd.nextDouble() * 6.5); // 16.5 - 23.0°C
+            baseHumidity = 50 + rnd.nextInt(20);
+            baseWind = 8.0 + (rnd.nextDouble() * 7.0);
+            rainChance = 15 + rnd.nextInt(25);
+            condition = rainChance > 30 ? "Mountain Clouds" : "Crisp & Sunny";
+            icon = rainChance > 30 ? "03d" : "01d";
+            brief = "Crisp mountain air with mild diurnal thermal shifts; optimal for temperate orchards.";
+        } else if (lon < 75.0 && lat >= 23.5) {
+            // Arid / Semi-Arid Western Zone (Rajasthan, North Gujarat, SW Punjab/Haryana)
+            baseTemp = 32.5 + (rnd.nextDouble() * 5.0); // 32.5 - 37.5°C
+            baseHumidity = 32 + rnd.nextInt(18);
+            baseWind = 14.0 + (rnd.nextDouble() * 8.0);
+            rainChance = 5 + rnd.nextInt(15);
+            condition = "Sunny & Dry";
+            icon = "01d";
+            brief = "Dry solar radiation with low ambient humidity; monitor soil moisture evaporation closely.";
+        } else if (lon >= 88.0) {
+            // North-Eastern Humid Sub-Tropical (Assam, Meghalaya, etc.)
+            baseTemp = 23.5 + (rnd.nextDouble() * 4.5); // 23.5 - 28.0°C
+            baseHumidity = 78 + rnd.nextInt(15);
+            baseWind = 7.0 + (rnd.nextDouble() * 5.0);
+            rainChance = 35 + rnd.nextInt(35);
+            condition = rainChance > 45 ? "Passing Showers" : "Humid Overcast";
+            icon = rainChance > 45 ? "10d" : "04d";
+            brief = "High atmospheric humidity with intermittent valley mist; conducive for foliar hydration.";
+        } else if (lat <= 16.0) {
+            // Peninsular / Coastal Southern Zone (TN, Kerala, Coastal AP/Karnataka)
+            baseTemp = 28.0 + (rnd.nextDouble() * 4.5); // 28.0 - 32.5°C
+            baseHumidity = 72 + rnd.nextInt(18);
+            baseWind = 11.0 + (rnd.nextDouble() * 6.0);
+            rainChance = 25 + rnd.nextInt(30);
+            condition = rainChance > 40 ? "Coastal Breezes & Rain" : "Warm & Tropical";
+            icon = rainChance > 40 ? "10d" : "02d";
+            brief = "Warm coastal air masses with maritime humidity; monitor for fungal spore germination.";
+        } else {
+            // Gangetic Alluvial & Central Plateau (UP, MP, Bihar, Maharashtra, Telangana)
+            baseTemp = 27.5 + (rnd.nextDouble() * 5.0); // 27.5 - 32.5°C
+            baseHumidity = 62 + rnd.nextInt(20);
+            baseWind = 10.0 + (rnd.nextDouble() * 6.0);
+            rainChance = 20 + rnd.nextInt(25);
+            condition = baseHumidity > 74 ? "Partly Cloudy" : "Sunny & Warm";
+            icon = baseHumidity > 74 ? "02d" : "01d";
+            brief = "Favorable agricultural canopy weather with early morning dew and stable barometric pressure.";
+        }
+
+        baseTemp = Math.round(baseTemp * 10.0) / 10.0;
+        baseWind = Math.round(baseWind * 10.0) / 10.0;
+        double feelsLike = Math.round((baseTemp + (baseHumidity > 70 ? 2.2 : -0.8)) * 10.0) / 10.0;
+
         WeatherData data = new WeatherData();
-        data.setCondition("Partly Cloudy");
-        data.setIcon("02d");
-        data.setTemperature(29.4);
-        data.setFeelsLike(31.2);
-        data.setHumidity(74); // elevated humidity triggers realistic crop disease risk note in Stage 4
-        data.setWindSpeed(12.5);
-        data.setRainChance(35);
-        data.setForecastBrief("Partly cloudy skies with early morning humidity (75-80%) and light westerly breeze.");
-        data.setForecast(createDefaultForecast());
+        data.setCondition(condition);
+        data.setIcon(icon);
+        data.setTemperature(baseTemp);
+        data.setFeelsLike(feelsLike);
+        data.setHumidity(baseHumidity);
+        data.setWindSpeed(baseWind);
+        data.setRainChance(rainChance);
+        data.setForecastBrief(brief);
+        data.setForecast(createDynamicForecast(baseTemp, baseHumidity, condition));
         return data;
     }
 
-    private List<WeatherData.ForecastDay> createDefaultForecast() {
+    private List<WeatherData.ForecastDay> createDynamicForecast(double curTemp, int humidity, String condition) {
         List<WeatherData.ForecastDay> list = new ArrayList<>();
-        list.add(new WeatherData.ForecastDay("Tomorrow", 30.5, 21.2, "Scattered Clouds", 30));
-        list.add(new WeatherData.ForecastDay("Day After", 31.8, 20.8, "Sunny & Warm", 15));
+        double day1Max = Math.round((curTemp + 1.2) * 10.0) / 10.0;
+        double day1Min = Math.round((curTemp - 7.5) * 10.0) / 10.0;
+        double day2Max = Math.round((curTemp + 2.0) * 10.0) / 10.0;
+        double day2Min = Math.round((curTemp - 6.8) * 10.0) / 10.0;
+
+        list.add(new WeatherData.ForecastDay("Tomorrow", day1Max, day1Min, condition, Math.min(85, humidity / 2)));
+        list.add(new WeatherData.ForecastDay("Day After", day2Max, day2Min, "Partly Sunny", Math.min(70, humidity / 3)));
         return list;
     }
 

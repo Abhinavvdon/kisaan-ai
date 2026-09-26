@@ -15,20 +15,7 @@ import {
   Share2,
   Tag
 } from 'lucide-react';
-
-const DISTRICT_LIST = [
-  'All Districts',
-  'Nashik',
-  'Pune',
-  'Guntur',
-  'Ludhiana',
-  'Karnal',
-  'Indore',
-  'Rajkot',
-  'Varanasi',
-  'Shimla',
-  'Mandya'
-];
+import { ALL_INDIAN_DISTRICTS } from '../data/allDistricts';
 
 export default function Saathi() {
   const { t, language } = useLanguage();
@@ -182,21 +169,29 @@ export default function Saathi() {
             </span>
           </div>
 
-          <div className="flex flex-wrap gap-1.5">
-            {DISTRICT_LIST.map((dist) => (
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={selectedDistrict}
+              onChange={(e) => setSelectedDistrict(e.target.value)}
+              className="bg-[#F7F2E9] px-3.5 py-1.5 rounded-xl border border-[#DECDBE] text-xs font-bold text-[#6B4423] focus:outline-none focus:border-[#4C7A3D] cursor-pointer max-w-[260px]"
+            >
+              <option value="All Districts">{t('saathiAllDistricts')} ({ALL_INDIAN_DISTRICTS.length} Districts A-Z)</option>
+              {ALL_INDIAN_DISTRICTS.map((dist) => (
+                <option key={`${dist.name}-${dist.state}`} value={dist.name}>
+                  {dist.name} ({dist.state})
+                </option>
+              ))}
+            </select>
+
+            {selectedDistrict !== 'All Districts' && (
               <button
-                key={dist}
                 type="button"
-                onClick={() => setSelectedDistrict(dist)}
-                className={`text-xs px-3 py-1.5 rounded-xl font-medium transition-all ${
-                  selectedDistrict === dist
-                    ? 'bg-[#6B4423] text-white shadow-sm font-semibold'
-                    : 'bg-[#F7F2E9] hover:bg-[#EFE8DC] text-[#5C4533] border border-[#DECDBE]'
-                }`}
+                onClick={() => setSelectedDistrict('All Districts')}
+                className="text-xs px-2.5 py-1 rounded-lg bg-white border border-[#DECDBE] text-[#C46A2B] hover:text-[#A8531D] font-bold transition-colors"
               >
-                {dist === 'All Districts' ? t('saathiAllDistricts') : dist}
+                ✕ {language === 'hi' ? 'सभी जिले देखें' : 'Show All'}
               </button>
-            ))}
+            )}
           </div>
         </div>
       </div>
@@ -421,9 +416,9 @@ export default function Saathi() {
                     onChange={(e) => setNewDistrict(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-[#DECDBE] bg-white text-sm text-[#2C1E14] focus:outline-none focus:border-[#4C7A3D]"
                   >
-                    {DISTRICT_LIST.filter((d) => d !== 'All Districts').map((d) => (
-                      <option key={d} value={d}>
-                        {d}
+                    {ALL_INDIAN_DISTRICTS.map((d) => (
+                      <option key={`${d.name}-${d.state}`} value={d.name}>
+                        {d.name}, {d.state}
                       </option>
                     ))}
                   </select>

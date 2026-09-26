@@ -23,52 +23,7 @@ import {
   UserCheck
 } from 'lucide-react';
 import Scanner from './Scanner';
-
-const EXPANDED_LOCATIONS = [
-  // Maharashtra
-  { name: 'Nashik', state: 'Maharashtra', lat: 19.9975, lon: 73.7898 },
-  { name: 'Pune', state: 'Maharashtra', lat: 18.5204, lon: 73.8567 },
-  { name: 'Nagpur', state: 'Maharashtra', lat: 21.1458, lon: 79.0882 },
-  { name: 'Solapur', state: 'Maharashtra', lat: 17.6599, lon: 75.9064 },
-  { name: 'Jalgaon', state: 'Maharashtra', lat: 21.0077, lon: 75.5626 },
-  { name: 'Kolhapur', state: 'Maharashtra', lat: 16.7050, lon: 74.2433 },
-  // Andhra Pradesh
-  { name: 'Guntur', state: 'Andhra Pradesh', lat: 16.3067, lon: 80.4365 },
-  { name: 'Kurnool', state: 'Andhra Pradesh', lat: 15.8281, lon: 78.0373 },
-  { name: 'Anantapur', state: 'Andhra Pradesh', lat: 14.6819, lon: 77.6006 },
-  // Punjab
-  { name: 'Ludhiana', state: 'Punjab', lat: 30.9010, lon: 75.8573 },
-  { name: 'Bathinda', state: 'Punjab', lat: 30.2110, lon: 74.9455 },
-  { name: 'Jalandhar', state: 'Punjab', lat: 31.3260, lon: 75.5762 },
-  // Haryana
-  { name: 'Karnal', state: 'Haryana', lat: 29.6857, lon: 76.9905 },
-  { name: 'Hisar', state: 'Haryana', lat: 29.1492, lon: 75.7217 },
-  { name: 'Sirsa', state: 'Haryana', lat: 29.5349, lon: 75.0294 },
-  // Madhya Pradesh
-  { name: 'Indore', state: 'Madhya Pradesh', lat: 22.7196, lon: 75.8577 },
-  { name: 'Ujjain', state: 'Madhya Pradesh', lat: 23.1765, lon: 75.7885 },
-  // Gujarat
-  { name: 'Rajkot', state: 'Gujarat', lat: 22.3039, lon: 70.8022 },
-  { name: 'Surat', state: 'Gujarat', lat: 21.1702, lon: 72.8311 },
-  // Uttar Pradesh
-  { name: 'Varanasi', state: 'Uttar Pradesh', lat: 25.3176, lon: 82.9739 },
-  { name: 'Lucknow', state: 'Uttar Pradesh', lat: 26.8467, lon: 80.9462 },
-  // Himachal Pradesh
-  { name: 'Shimla', state: 'Himachal Pradesh', lat: 31.1048, lon: 77.1734 },
-  // Karnataka
-  { name: 'Mandya', state: 'Karnataka', lat: 12.5234, lon: 76.8966 },
-  { name: 'Belagavi', state: 'Karnataka', lat: 15.8497, lon: 74.4977 },
-  // Tamil Nadu
-  { name: 'Coimbatore', state: 'Tamil Nadu', lat: 11.0168, lon: 76.9558 },
-  { name: 'Thanjavur', state: 'Tamil Nadu', lat: 10.7870, lon: 79.1378 },
-  // Rajasthan
-  { name: 'Jaipur', state: 'Rajasthan', lat: 26.9124, lon: 75.7873 },
-  { name: 'Bikaner', state: 'Rajasthan', lat: 28.0229, lon: 73.3119 },
-  // Bihar & Bengal & Kerala
-  { name: 'Patna', state: 'Bihar', lat: 25.5941, lon: 85.1376 },
-  { name: 'Burdwan', state: 'West Bengal', lat: 23.2324, lon: 87.8615 },
-  { name: 'Wayanad', state: 'Kerala', lat: 11.6854, lon: 76.1320 },
-];
+import { ALL_INDIAN_DISTRICTS } from '../data/allDistricts';
 
 export default function Dashboard() {
   const { t, language } = useLanguage();
@@ -82,11 +37,22 @@ export default function Dashboard() {
       console.warn('Failed to parse saved location', e);
     }
     if (user && user.district) {
-      const match = EXPANDED_LOCATIONS.find((l) => l.name.toLowerCase() === user.district.toLowerCase());
+      const match = ALL_INDIAN_DISTRICTS.find((l) => l.name.toLowerCase() === user.district.toLowerCase());
       if (match) return match;
     }
-    return EXPANDED_LOCATIONS[0];
+    // Default to Nashik, Maharashtra or first district alphabetically
+    return ALL_INDIAN_DISTRICTS.find((l) => l.name === 'Nashik') || ALL_INDIAN_DISTRICTS[0];
   });
+
+  const [districtSearch, setDistrictSearch] = useState('');
+
+  const filteredDistricts = React.useMemo(() => {
+    if (!districtSearch.trim()) return ALL_INDIAN_DISTRICTS;
+    const q = districtSearch.toLowerCase().trim();
+    return ALL_INDIAN_DISTRICTS.filter((d) =>
+      d.name.toLowerCase().includes(q) || d.state.toLowerCase().includes(q)
+    );
+  }, [districtSearch]);
 
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -131,11 +97,11 @@ export default function Dashboard() {
         const lat = position.coords.latitude;
         const lon = position.coords.longitude;
 
-        // Find closest Indian district in our list
-        let closest = EXPANDED_LOCATIONS[0];
+        // Find closest Indian district in our 786-district dataset
+        let closest = ALL_INDIAN_DISTRICTS[0];
         let minDistance = 999999;
 
-        EXPANDED_LOCATIONS.forEach((loc) => {
+        ALL_INDIAN_DISTRICTS.forEach((loc) => {
           const d = Math.sqrt(Math.pow(loc.lat - lat, 2) + Math.pow(loc.lon - lon, 2));
           if (d < minDistance) {
             minDistance = d;
@@ -221,52 +187,75 @@ export default function Dashboard() {
             </p>
           </div>
 
-          {/* Location Controls: 1) GPS Detect Button, 2) Manual District Picker */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 self-start lg:self-auto">
+          {/* Location Controls: 1) GPS Detect Button, 2) Searchable Alphabetical District Picker */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 self-start lg:self-auto">
             {/* GPS Detect Button */}
             <button
               type="button"
               onClick={handleDetectLocation}
               disabled={gpsDetecting}
-              className="inline-flex items-center justify-center space-x-1.5 px-4 py-2.5 rounded-2xl bg-[#4C7A3D] hover:bg-[#3F6632] text-white text-xs font-bold shadow-sm transition-all transform active:scale-95 disabled:opacity-60"
+              className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-2.5 rounded-2xl bg-[#4C7A3D] hover:bg-[#3F6632] text-white text-xs font-bold shadow-sm transition-all transform active:scale-95 disabled:opacity-60 shrink-0"
             >
-              <Navigation size={15} className={gpsDetecting ? 'animate-spin' : ''} />
-              <span>{gpsDetecting ? 'Locating...' : language === 'hi' ? '📍 मेरी लोकेशन पहचानें' : '📍 Detect My Location'}</span>
+              <Navigation size={14} className={gpsDetecting ? 'animate-spin' : ''} />
+              <span>{gpsDetecting ? 'Locating...' : language === 'hi' ? '📍 मेरी लोकेशन' : '📍 Detect GPS'}</span>
             </button>
 
-            {/* Manual District Picker (30+ Indian agricultural districts) */}
-            <div className="flex items-center space-x-2 bg-[#F7F2E9] px-3 py-2 rounded-2xl border border-[#DECDBE]">
+            {/* Searchable Alphabetical District Picker (786 Districts A-Z) */}
+            <div className="flex items-center space-x-2 bg-[#F7F2E9] px-3 py-1.5 rounded-2xl border border-[#DECDBE]">
               <MapPin size={17} className="text-[#C46A2B] shrink-0" />
               <div className="flex flex-col">
-                <span className="text-[10px] uppercase font-bold text-[#8A7463] tracking-wider">
-                  {language === 'hi' ? 'जिला चुनें (30+ जिले)' : 'Farm District (30+)'}
-                </span>
-                <select
-                  value={selectedLocation.name}
-                  onChange={(e) => {
-                    const loc = EXPANDED_LOCATIONS.find((d) => d.name === e.target.value);
-                    if (loc) {
-                      setSelectedLocation(loc);
-                      try {
-                        localStorage.setItem('kisaan_selected_location', JSON.stringify(loc));
-                      } catch (err) {}
-                    }
-                  }}
-                  className="bg-transparent text-xs font-bold text-[#6B4423] focus:outline-none cursor-pointer max-w-[170px]"
-                >
-                  {EXPANDED_LOCATIONS.map((loc) => (
-                    <option key={loc.name} value={loc.name}>
-                      {loc.name}, {loc.state}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center justify-between space-x-2">
+                  <span className="text-[9px] uppercase font-bold text-[#8A7463] tracking-wider">
+                    {language === 'hi' ? `भारत के सभी जिले (${ALL_INDIAN_DISTRICTS.length})` : `All Indian Districts (${ALL_INDIAN_DISTRICTS.length})`}
+                  </span>
+                  <span className="text-[8px] font-bold text-[#4C7A3D] bg-white px-1.5 py-0.5 rounded border border-[#DECDBE]">
+                    A &rarr; Z
+                  </span>
+                </div>
+
+                <div className="flex items-center space-x-1.5 mt-1">
+                  <div className="relative flex items-center">
+                    <Search size={11} className="absolute left-1.5 text-[#8A7463] pointer-events-none" />
+                    <input
+                      type="text"
+                      value={districtSearch}
+                      onChange={(e) => setDistrictSearch(e.target.value)}
+                      placeholder={language === 'hi' ? 'खोजें...' : 'Filter...'}
+                      className="pl-5 pr-1.5 py-1 w-20 sm:w-24 text-[11px] font-medium bg-white rounded-lg border border-[#DECDBE] text-[#6B4423] focus:outline-none focus:border-[#4C7A3D]"
+                    />
+                  </div>
+
+                  <select
+                    value={selectedLocation.name}
+                    onChange={(e) => {
+                      const loc = ALL_INDIAN_DISTRICTS.find((d) => d.name === e.target.value);
+                      if (loc) {
+                        setSelectedLocation(loc);
+                        try {
+                          localStorage.setItem('kisaan_selected_location', JSON.stringify(loc));
+                        } catch (err) {}
+                      }
+                    }}
+                    className="bg-white px-2 py-1 rounded-lg border border-[#DECDBE] text-xs font-bold text-[#6B4423] focus:outline-none focus:border-[#4C7A3D] cursor-pointer max-w-[180px] sm:max-w-[210px]"
+                  >
+                    {filteredDistricts.length === 0 ? (
+                      <option disabled>No district found</option>
+                    ) : (
+                      filteredDistricts.map((loc) => (
+                        <option key={`${loc.name}-${loc.state}`} value={loc.name}>
+                          {loc.name}, {loc.state}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
               </div>
 
               <button
                 type="button"
                 onClick={fetchDashboard}
                 title="Refresh Telemetry"
-                className="p-1.5 text-[#6B4423] hover:text-[#4C7A3D] rounded-lg transition-colors"
+                className="p-1.5 text-[#6B4423] hover:text-[#4C7A3D] rounded-lg transition-colors ml-0.5"
               >
                 <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
               </button>

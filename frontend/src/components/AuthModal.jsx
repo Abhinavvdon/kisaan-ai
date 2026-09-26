@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { X, LogIn, UserPlus, Sparkles, Check, AlertCircle } from 'lucide-react';
+import { ALL_INDIAN_DISTRICTS } from '../data/allDistricts';
 
 export default function AuthModal() {
   const { isAuthModalOpen, setIsAuthModalOpen, login, register } = useAuth();
@@ -257,16 +258,33 @@ export default function AuthModal() {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[10px] font-bold uppercase text-[#6B4423] mb-0.5">
-                  District
+                  District (786 Districts A-Z)
                 </label>
                 <input
                   type="text"
                   required
+                  list="all-indian-districts-list"
                   value={regDistrict}
-                  onChange={(e) => setRegDistrict(e.target.value)}
-                  placeholder="e.g. Nashik, Pune"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setRegDistrict(val);
+                    const matched = ALL_INDIAN_DISTRICTS.find(
+                      (d) => d.name.toLowerCase() === val.trim().toLowerCase()
+                    );
+                    if (matched) {
+                      setRegState(matched.state);
+                    }
+                  }}
+                  placeholder="e.g. Agra, Nashik, Pune..."
                   className="w-full px-3 py-2 rounded-xl border border-[#DECDBE] bg-white text-xs text-[#2C1E14] focus:outline-none focus:border-[#4C7A3D]"
                 />
+                <datalist id="all-indian-districts-list">
+                  {ALL_INDIAN_DISTRICTS.map((d) => (
+                    <option key={`${d.name}-${d.state}`} value={d.name}>
+                      {d.name}, {d.state}
+                    </option>
+                  ))}
+                </datalist>
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase text-[#6B4423] mb-0.5">
