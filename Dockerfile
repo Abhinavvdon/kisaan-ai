@@ -34,6 +34,9 @@ COPY --from=frontend-builder /app/frontend/dist/ ./src/main/resources/static/
 # Copy backend source code
 COPY backend/src/ ./src/
 
+# Set memory limits for Gradle build to fit within Render free tier (512MB RAM)
+ENV GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx256m -XX:MaxMetaspaceSize=128m"
+
 # Build standalone executable Spring Boot JAR (skipping unit tests during container build)
 RUN ./gradlew bootJar --no-daemon -x test
 
@@ -53,5 +56,5 @@ COPY --from=backend-builder /app/backend/build/libs/*.jar app.jar
 ENV PORT=8085
 EXPOSE 8085
 
-# Fast container startup with secure random seed
-ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-Dserver.port=${PORT}", "-jar", "app.jar"]
+# Fast container startup with tuned heap memory for Render free tier
+ENTRYPOINT ["java", "-Xmx300m", "-Xss512k", "-Djava.security.egd=file:/dev/./urandom", "-Dserver.port=${PORT}", "-jar", "app.jar"]
