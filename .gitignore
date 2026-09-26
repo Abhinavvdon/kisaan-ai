@@ -25,3 +25,8 @@ bin/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Database files
+backend/data/
+*.mv.db
+*.trace.db

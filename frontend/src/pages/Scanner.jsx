@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import {
   Camera,
   Upload,
@@ -13,11 +14,29 @@ import {
   Flame,
   FileQuestion,
   Leaf,
-  ExternalLink
+  ExternalLink,
+  Key,
+  Layers,
+  History
 } from 'lucide-react';
+
+const CROP_OPTIONS = [
+  { id: 'tomato', name: 'Tomato (टमाटर)', icon: '🍅' },
+  { id: 'wheat', name: 'Wheat (गेहूं)', icon: '🌾' },
+  { id: 'rice', name: 'Rice / Paddy (धान)', icon: '🌾' },
+  { id: 'cotton', name: 'Cotton (कपास)', icon: '🌱' },
+  { id: 'chilli', name: 'Chilli (मिर्च)', icon: '🌶️' },
+  { id: 'potato', name: 'Potato (आलू)', icon: '🥔' },
+  { id: 'corn', name: 'Corn / Maize (मक्का)', icon: '🌽' },
+  { id: 'grape', name: 'Grapes (अंगूर)', icon: '🍇' },
+  { id: 'healthy', name: 'Healthy Leaf (स्वस्थ पत्ती)', icon: '🌿' }
+];
 
 export default function Scanner() {
   const { t, language } = useLanguage();
+  const { user, geminiApiKey, setIsKeyModalOpen } = useAuth();
+
+  const [selectedCrop, setSelectedCrop] = useState(CROP_OPTIONS[0].id);
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -46,8 +65,8 @@ export default function Scanner() {
     }
   };
 
-  const loadSampleLeaf = (sampleType) => {
-    // Generate a quick synthetic sample leaf canvas for one-click testing
+  const loadSampleLeaf = (cropId) => {
+    setSelectedCrop(cropId);
     const canvas = document.createElement('canvas');
     canvas.width = 400;
     canvas.height = 300;
@@ -60,7 +79,7 @@ export default function Scanner() {
     // Leaf base
     ctx.beginPath();
     ctx.ellipse(200, 150, 140, 70, 0.4, 0, 2 * Math.PI);
-    ctx.fillStyle = sampleType === 'healthy' ? '#3B7A2B' : '#556B2F';
+    ctx.fillStyle = cropId === 'healthy' ? '#3B7A2B' : '#556B2F';
     ctx.fill();
 
     // Leaf main vein
@@ -71,33 +90,39 @@ export default function Scanner() {
     ctx.strokeStyle = '#8DA351';
     ctx.stroke();
 
-    // Disease spots for blight / rust
-    if (sampleType === 'blight') {
+    // Specific symptom markers
+    if (cropId === 'wheat') {
+      ctx.fillStyle = '#E5A91E'; // yellow stripe rust
+      for (let i = 0; i < 30; i++) {
+        ctx.fillRect(110 + i * 5, 120 + (i % 3) * 14, 18, 3);
+      }
+    } else if (cropId === 'rice') {
+      ctx.fillStyle = '#D6CEAA'; // bacterial blight wavy edge
+      ctx.fillRect(90, 95, 200, 12);
+    } else if (cropId === 'chilli') {
+      ctx.fillStyle = '#3E2723';
+      for (let i = 0; i < 15; i++) {
+        ctx.beginPath();
+        ctx.arc(140 + i * 8, 130 + (i % 4) * 10, 3, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    } else if (cropId === 'grape') {
+      ctx.fillStyle = '#EFEBE9'; // downy mildew
+      ctx.beginPath();
+      ctx.arc(180, 145, 25, 0, 2 * Math.PI);
+      ctx.arc(220, 160, 20, 0, 2 * Math.PI);
+      ctx.fill();
+    } else if (cropId !== 'healthy') {
+      // General necrotic spots (blight)
       ctx.fillStyle = '#3D2012';
       ctx.beginPath();
       ctx.arc(170, 140, 24, 0, 2 * Math.PI);
       ctx.arc(230, 170, 18, 0, 2 * Math.PI);
-      ctx.arc(140, 120, 15, 0, 2 * Math.PI);
       ctx.fill();
-
-      // Yellow halo
-      ctx.strokeStyle = '#D4AF37';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(170, 140, 28, 0, 2 * Math.PI);
-      ctx.arc(230, 170, 22, 0, 2 * Math.PI);
-      ctx.stroke();
-    } else if (sampleType === 'rust') {
-      ctx.fillStyle = '#C46A2B';
-      for (let i = 0; i < 20; i++) {
-        ctx.beginPath();
-        ctx.arc(140 + i * 7, 125 + (i % 4) * 12, 4, 0, 2 * Math.PI);
-        ctx.fill();
-      }
     }
 
     canvas.toBlob((blob) => {
-      const sampleFile = new File([blob], `${sampleType}_sample_leaf.jpg`, { type: 'image/jpeg' });
+      const sampleFile = new File([blob], `${cropId}_sample_leaf.jpg`, { type: 'image/jpeg' });
       setFile(sampleFile);
       setPreviewUrl(URL.createObjectURL(blob));
       setResult(null);
@@ -115,6 +140,10 @@ export default function Scanner() {
     formData.append('lat', '19.9975');
     formData.append('lon', '73.7898');
     formData.append('language', language === 'hi' ? 'hi' : 'en');
+    formData.append('cropHint', selectedCrop);
+    if (geminiApiKey) {
+      formData.append('apiKey', geminiApiKey);
+    }
 
     try {
       const res = await fetch('/api/scan', {
@@ -124,6 +153,23 @@ export default function Scanner() {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       setResult(data);
+
+      // Save to user scan history if user is logged in
+      if (user && data.candidates && data.candidates.length > 0) {
+        fetch('/api/auth/scan-history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.id,
+            cropName: selectedCrop.toUpperCase(),
+            diseaseName: data.candidates[0].disease_name,
+            confidence: data.candidates[0].confidence,
+            severity: data.candidates[0].severity,
+            recommendedAction: data.recommended_action,
+            weatherRisk: data.weather_risk_note
+          })
+        }).catch((e) => console.log('History save:', e));
+      }
     } catch (err) {
       setError(err.message || 'Scan failed. Please check network connection.');
     } finally {
@@ -133,31 +179,67 @@ export default function Scanner() {
 
   const getSeverityBadgeClass = (severity) => {
     const s = (severity || '').toLowerCase();
-    if (s === 'severe' || s.includes('गंभीर')) {
-      return 'bg-red-500 text-white';
-    }
-    if (s === 'moderate' || s.includes('मध्यम')) {
-      return 'bg-[#C46A2B] text-white';
-    }
-    return 'bg-[#649953] text-white';
+    if (s === 'severe' || s.includes('गंभीर')) return 'bg-red-500 text-white';
+    if (s === 'moderate' || s.includes('मध्यम')) return 'bg-[#C46A2B] text-white';
+    return 'bg-[#4C7A3D] text-white';
   };
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto animate-fadeIn">
-      {/* Page Header */}
-      <div className="bg-white rounded-2xl p-6 border border-[#E2D9CC] shadow-sm relative overflow-hidden">
+      {/* Page Header with Gemini API Key setup button */}
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E2D9CC] shadow-sm relative overflow-hidden">
         <div className="absolute inset-0 furrow-pattern pointer-events-none opacity-40" />
-        <div className="relative">
-          <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#EAF3E7] text-[#4C7A3D] border border-[#D1E6CC] mb-2">
-            <Sparkles size={14} />
-            <span>{language === 'hi' ? 'जेमिनी एआई विज़न समर्थित' : 'Powered by Google Gemini Multimodal AI'}</span>
+        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#EAF3E7] text-[#4C7A3D] border border-[#D1E6CC] mb-2">
+              <Sparkles size={14} />
+              <span>
+                {geminiApiKey
+                  ? '⚡ Google Gemini Multimodal Live Active'
+                  : '🌿 Multi-Crop Pathology AI Engine Active'}
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#6B4423] font-['Poppins']">
+              {t('scannerTitle')}
+            </h1>
+            <p className="text-xs sm:text-sm text-[#5C4533] mt-1">
+              {t('scannerSubtitle')}
+            </p>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#6B4423] font-['Poppins']">
-            {t('scannerTitle')}
-          </h1>
-          <p className="text-sm text-[#5C4533] mt-1">
-            {t('scannerSubtitle')}
-          </p>
+
+          {/* Gemini API Key Configuration Button */}
+          <button
+            type="button"
+            onClick={() => setIsKeyModalOpen(true)}
+            className="self-start md:self-auto inline-flex items-center space-x-1.5 px-4 py-2.5 rounded-2xl bg-[#F7F2E9] hover:bg-[#EFE8DC] border border-[#DECDBE] text-[#6B4423] text-xs font-bold shadow-sm transition-all"
+          >
+            <Key size={14} className="text-[#C46A2B]" />
+            <span>{geminiApiKey ? 'Gemini Key Configured' : 'Configure Gemini API Key'}</span>
+          </button>
+        </div>
+
+        {/* Dynamic Crop Category Selector Chips */}
+        <div className="mt-5 pt-4 border-t border-[#EFE8DC]">
+          <span className="block text-xs font-bold uppercase text-[#8A7463] mb-2 tracking-wide">
+            {language === 'hi' ? 'फसल का प्रकार चुनें:' : 'Select Target Crop:'}
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {CROP_OPTIONS.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => loadSampleLeaf(c.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  selectedCrop === c.id
+                    ? 'bg-[#4C7A3D] text-white shadow-sm ring-2 ring-[#4C7A3D]/30'
+                    : 'bg-[#F7F2E9] text-[#6B4423] border border-[#DECDBE] hover:bg-[#EFE8DC]'
+                }`}
+              >
+                <span>{c.icon}</span>
+                <span>{c.name}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -191,7 +273,6 @@ export default function Scanner() {
                 {t('scannerUploadSub')}
               </p>
 
-              {/* Large Thumb-Reachable CTA Button for Mobile */}
               <button
                 type="button"
                 className="mt-6 inline-flex items-center justify-center space-x-2 px-6 py-3.5 rounded-2xl bg-[#4C7A3D] hover:bg-[#3F6632] text-white font-bold text-sm shadow-md transition-all transform group-hover:scale-105"
@@ -199,36 +280,6 @@ export default function Scanner() {
                 <Camera size={18} />
                 <span>{t('scannerCameraBtn')}</span>
               </button>
-            </div>
-
-            {/* Quick Demo Test Buttons */}
-            <div className="mt-5 pt-4 border-t border-[#EFE8DC]">
-              <span className="block text-xs font-semibold text-[#8A7463] mb-2 uppercase tracking-wide">
-                {language === 'hi' ? 'तुरंत परीक्षण के लिए नमूना चुनें:' : 'Or tap a sample to test immediately:'}
-              </span>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => loadSampleLeaf('blight')}
-                  className="px-3 py-1.5 rounded-xl bg-[#F7F2E9] hover:bg-[#EFE8DC] border border-[#DECDBE] text-xs font-semibold text-[#6B4423] flex items-center gap-1.5 transition-colors"
-                >
-                  🍂 {language === 'hi' ? 'टमाटर झुलसा नमूना (Blight)' : 'Tomato Blight Sample'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => loadSampleLeaf('rust')}
-                  className="px-3 py-1.5 rounded-xl bg-[#F7F2E9] hover:bg-[#EFE8DC] border border-[#DECDBE] text-xs font-semibold text-[#6B4423] flex items-center gap-1.5 transition-colors"
-                >
-                  🌾 {language === 'hi' ? 'गेहूं रतुआ नमूना (Rust)' : 'Wheat Rust Sample'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => loadSampleLeaf('healthy')}
-                  className="px-3 py-1.5 rounded-xl bg-[#F7F2E9] hover:bg-[#EFE8DC] border border-[#DECDBE] text-xs font-semibold text-[#4C7A3D] flex items-center gap-1.5 transition-colors"
-                >
-                  🌿 {language === 'hi' ? 'स्वस्थ पत्ती (Healthy)' : 'Healthy Leaf Sample'}
-                </button>
-              </div>
             </div>
           </div>
         ) : (
@@ -241,7 +292,6 @@ export default function Scanner() {
                 className="max-h-80 w-full object-contain"
               />
 
-              {/* Scanning laser animation overlay when analyzing */}
               {loading && (
                 <div className="absolute inset-0 bg-[#4C7A3D]/20 backdrop-blur-[1px] flex flex-col items-center justify-center text-white">
                   <div className="w-full h-1 bg-[#4C7A3D] shadow-[0_0_15px_#4C7A3D] animate-bounce absolute top-1/2" />
@@ -307,7 +357,7 @@ export default function Scanner() {
               </div>
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider text-[#8A7463]">
-                  {t('scannerResultsTitle')}
+                  {t('scannerResultsTitle')} &bull; {selectedCrop.toUpperCase()}
                 </span>
                 <h2 className="text-xl sm:text-2xl font-bold text-[#6B4423] font-['Poppins']">
                   {result.healthy
@@ -338,11 +388,11 @@ export default function Scanner() {
 
           {/* Model info banner */}
           <div className="flex items-center justify-between text-[11px] text-[#8A7463] bg-[#F7F2E9] px-3.5 py-1.5 rounded-xl border border-[#DECDBE]">
-            <span>Model: {result.model_used || 'Gemini 3.6 Flash'}</span>
-            <span>Status: Multi-candidate verified</span>
+            <span>Engine: {result.model_used || 'Google Gemini 2.5 Flash'}</span>
+            <span>Confidence Scoring: Active</span>
           </div>
 
-          {/* STACKED CANDIDATES WITH CONFIDENCE BARS (Not just a single verdict) */}
+          {/* STACKED CANDIDATES WITH CONFIDENCE BARS */}
           {result.candidates && result.candidates.length > 0 && (
             <div>
               <h3 className="text-sm font-bold text-[#6B4423] uppercase tracking-wide mb-3 flex items-center gap-1.5">
@@ -370,12 +420,10 @@ export default function Scanner() {
                       </span>
                     </div>
 
-                    {/* Affected area description */}
                     <p className="text-xs text-[#5C4533] leading-relaxed">
                       {cand.affected_area_description}
                     </p>
 
-                    {/* Confidence Progress Bar */}
                     <div className="w-full bg-[#EFE8DC] h-3 rounded-full overflow-hidden p-0.5">
                       <div
                         className={`h-full rounded-full transition-all duration-700 ${
@@ -392,7 +440,7 @@ export default function Scanner() {
             </div>
           )}
 
-          {/* WEATHER-BASED RISK NOTE (Combined with farm weather) */}
+          {/* WEATHER RISK NOTE */}
           {result.weather_risk_note && (
             <div className="p-4 sm:p-5 rounded-2xl bg-[#FDF2E9] border-2 border-[#F6DCC7] space-y-2 shadow-sm">
               <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-[#C46A2B]">
@@ -407,7 +455,6 @@ export default function Scanner() {
 
           {/* ACTION & ORGANIC ALTERNATIVE */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-            {/* Recommended Chemical / Agronomic Action */}
             <div className="p-4 sm:p-5 rounded-2xl bg-[#EAF3E7]/60 border border-[#D1E6CC] space-y-2">
               <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wide text-[#2E4C24]">
                 <ShieldCheck size={16} className="text-[#4C7A3D]" />
@@ -418,7 +465,6 @@ export default function Scanner() {
               </p>
             </div>
 
-            {/* Organic Alternative */}
             <div className="p-4 sm:p-5 rounded-2xl bg-[#F7F2E9] border border-[#DECDBE] space-y-2">
               <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wide text-[#6B4423]">
                 <Leaf size={16} className="text-[#4C7A3D]" />

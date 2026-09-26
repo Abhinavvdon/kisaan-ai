@@ -22,13 +22,17 @@ public class ScanController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "lat", defaultValue = "19.9975") double lat,
             @RequestParam(value = "lon", defaultValue = "73.7898") double lon,
-            @RequestParam(value = "language", defaultValue = "English") String language
+            @RequestParam(value = "language", defaultValue = "English") String language,
+            @RequestParam(value = "cropHint", required = false) String cropHint,
+            @RequestParam(value = "apiKey", required = false) String apiKey,
+            @RequestHeader(value = "X-Gemini-Key", required = false) String headerApiKey
     ) {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
 
-        ScanResponse response = scannerService.analyzeCrop(file, lat, lon, language);
+        String effectiveKey = (apiKey != null && !apiKey.trim().isEmpty()) ? apiKey : headerApiKey;
+        ScanResponse response = scannerService.analyzeCrop(file, lat, lon, language, cropHint, effectiveKey);
         return ResponseEntity.ok(response);
     }
 }

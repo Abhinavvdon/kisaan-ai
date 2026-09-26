@@ -10,25 +10,42 @@ import {
   HelpCircle,
   Sparkles,
   ArrowRight,
-  Award
+  Award,
+  Layers,
+  Clock
 } from 'lucide-react';
 
 const STATE_LIST = [
   'All India',
   'Maharashtra',
   'Andhra Pradesh',
+  'Telangana',
   'Madhya Pradesh',
   'Himachal Pradesh',
   'Punjab',
+  'Haryana',
   'Uttar Pradesh',
   'Gujarat',
   'Karnataka'
+];
+
+const CATEGORY_CHIPS = [
+  'All Schemes',
+  'Recent (Last 5 Years)',
+  'Technology & Drones',
+  'Renewable Energy',
+  'Natural & Bio Farming',
+  'Income Support',
+  'Credit & Loans',
+  'Post-Harvest & Processing',
+  'State Top-Up'
 ];
 
 export default function YojanaSetu() {
   const { t, language } = useLanguage();
   const [schemes, setSchemes] = useState([]);
   const [selectedState, setSelectedState] = useState('All India');
+  const [selectedCategory, setSelectedCategory] = useState('All Schemes');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -55,6 +72,19 @@ export default function YojanaSetu() {
   }, [selectedState]);
 
   const filteredSchemes = schemes.filter((s) => {
+    // Category filter
+    if (selectedCategory === 'Recent (Last 5 Years)') {
+      const recentKeywords = ['2024', '2023', 'drone', 'digital', 'clean plant', 'pranam', 'gobardhan', 'surya ghar', 'agri-sure', 'natural farming', 'oil palm', 'pmfme'];
+      const text = ((s.name || '') + ' ' + (s.description || '')).toLowerCase();
+      const isRecent = recentKeywords.some((k) => text.includes(k));
+      if (!isRecent) return false;
+    } else if (selectedCategory !== 'All Schemes') {
+      if (s.category && !s.category.toLowerCase().includes(selectedCategory.toLowerCase())) {
+        return false;
+      }
+    }
+
+    // Keyword search
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
     const nameMatch = (s.name && s.name.toLowerCase().includes(query)) ||
@@ -73,13 +103,19 @@ export default function YojanaSetu() {
         <div className="relative">
           <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#FDF2E9] text-[#C46A2B] border border-[#F6DCC7] mb-2">
             <Landmark size={14} />
-            <span>{language === 'hi' ? 'शासकीय कृषी कल्याण योजना' : 'Direct Government Agricultural Welfare'}</span>
+            <span>
+              {language === 'hi'
+                ? 'सरकारी कृषि कल्याण योजनाएं (30+ योजनाएं)'
+                : 'Central & State Agriculture Welfare Directory (30+ Schemes)'}
+            </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-[#6B4423] font-['Poppins']">
             {t('yojanaTitle')}
           </h1>
           <p className="text-xs sm:text-sm text-[#5C4533] mt-1">
-            {t('yojanaSubtitle')}
+            {language === 'hi'
+              ? 'डिजिटल कृषि मिशन, किसान ड्रोन, क्लीन प्लांट और पीएम-किसान सहित पिछले 5 वर्षों की प्रमुख योजनाएं'
+              : 'Direct access to high-impact welfare programs from the last 5 years including Digital Agri Mission, Kisan Drones & Solar Pumps'}
           </p>
 
           {/* Filter and Search Bar */}
@@ -112,10 +148,28 @@ export default function YojanaSetu() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t('yojanaSearchPlaceholder')}
+                placeholder={language === 'hi' ? 'योजना खोजें (उदा. ड्रोन, सोलर, डिजिटल, सब्सिडी)...' : 'Search schemes by keyword (e.g. drone, solar, digital, subsidy, credit)...'}
                 className="bg-transparent text-sm text-[#2C1E14] placeholder-[#8A7463] focus:outline-none w-full"
               />
             </div>
+          </div>
+
+          {/* Quick Category Filter Chips */}
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            {CATEGORY_CHIPS.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedCategory(cat)}
+                className={`text-xs px-3 py-1.5 rounded-xl font-medium transition-all ${
+                  selectedCategory === cat
+                    ? 'bg-[#4C7A3D] text-white shadow-sm font-bold'
+                    : 'bg-[#F7F2E9] text-[#5C4533] border border-[#DECDBE] hover:bg-[#EFE8DC]'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -208,12 +262,13 @@ export default function YojanaSetu() {
             {language === 'hi' ? 'कोई योजना नहीं मिली' : 'No matching schemes found'}
           </h2>
           <p className="text-xs text-[#8A7463]">
-            {language === 'hi' ? 'कृपया अन्य राज्य चुनें या खोज शब्द बदलें।' : 'Try clearing your search query or selecting "All India".'}
+            {language === 'hi' ? 'कृपया अन्य श्रेणी चुनें या खोज शब्द बदलें।' : 'Try resetting your category filter or selecting "All India".'}
           </p>
           <button
             type="button"
             onClick={() => {
               setSearchQuery('');
+              setSelectedCategory('All Schemes');
               setSelectedState('All India');
             }}
             className="px-4 py-2 rounded-xl bg-[#4C7A3D] text-white text-xs font-bold"
