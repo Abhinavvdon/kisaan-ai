@@ -38,11 +38,8 @@ export default function Navbar() {
             🌱
           </div>
           <div>
-            <div className="font-bold text-lg tracking-tight text-white font-['Poppins'] flex items-center gap-1.5">
+            <div className="font-bold text-lg tracking-tight text-white font-['Poppins'] flex items-center">
               <span>{t('appName')}</span>
-              <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-[#4C7A3D] text-[#EAF3E7]">
-                AI 2.0
-              </span>
             </div>
             <p className="hidden sm:block text-[11px] text-[#DECDBE] uppercase tracking-wider font-medium">
               {t('appTagline')}

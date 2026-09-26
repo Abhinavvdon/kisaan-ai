@@ -1,3 +1,8 @@
+databases:
+  - name: kisaandb
+    plan: free
+    region: oregon
+
 services:
   - type: web
     name: kisaan-ai
@@ -10,9 +15,14 @@ services:
     envVars:
       - key: PORT
         value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kisaandb
+          property: connectionString
       - key: GEMINI_API_KEY
         value: demo
       - key: OPENWEATHERMAP_API_KEY
         value: demo
       - key: SPRING_PROFILES_ACTIVE
         value: default
+
