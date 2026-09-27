@@ -20,6 +20,12 @@ public class Post {
     @Column(columnDefinition = "TEXT", nullable = false)
     private String description;
 
+    @Column(columnDefinition = "TEXT")
+    private String titleHi;
+
+    @Column(columnDefinition = "TEXT")
+    private String descriptionHi;
+
     private String imageUrl;
 
     @Column(nullable = false)
@@ -43,8 +49,15 @@ public class Post {
 
     public Post(String title, String description, String imageUrl, String district,
                 String state, String authorName, String cropTag) {
+        this(title, description, null, null, imageUrl, district, state, authorName, cropTag);
+    }
+
+    public Post(String title, String description, String titleHi, String descriptionHi,
+                String imageUrl, String district, String state, String authorName, String cropTag) {
         this.title = title;
         this.description = description;
+        this.titleHi = titleHi;
+        this.descriptionHi = descriptionHi;
         this.imageUrl = imageUrl;
         this.district = district;
         this.state = state;
@@ -61,6 +74,12 @@ public class Post {
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+
+    public String getTitleHi() { return titleHi; }
+    public void setTitleHi(String titleHi) { this.titleHi = titleHi; }
+
+    public String getDescriptionHi() { return descriptionHi; }
+    public void setDescriptionHi(String descriptionHi) { this.descriptionHi = descriptionHi; }
 
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }

@@ -41,7 +41,7 @@ public class SaathiController {
     @PostMapping("/{id}/comments")
     public ResponseEntity<Comment> addComment(@PathVariable Long id, @RequestBody Map<String, String> payload) {
         String text = payload.get("text");
-        String authorName = payload.getOrDefault("authorName", "Ramesh Patil");
+        String authorName = payload.getOrDefault("authorName", "Farmer Member");
 
         if (text == null || text.trim().isEmpty()) {
             return ResponseEntity.badRequest().build();

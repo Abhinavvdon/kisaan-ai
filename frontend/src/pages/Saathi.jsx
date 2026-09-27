@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import {
   Users,
   MessageSquare,
@@ -13,12 +14,36 @@ import {
   ChevronUp,
   X,
   Share2,
-  Tag
+  Tag,
+  Languages,
+  CheckCircle2
 } from 'lucide-react';
 import { ALL_INDIAN_DISTRICTS } from '../data/allDistricts';
 
+const CROP_TRANSLATIONS = {
+  'Onion': 'प्याज',
+  'Chilli': 'मिर्च',
+  'Wheat': 'गेहूं',
+  'Irrigation': 'सिंचाई',
+  'Tomato': 'टमाटर',
+  'General': 'सामान्य',
+  'Rice': 'धान',
+  'Cotton': 'कपास',
+  'Potato': 'आलू',
+  'Corn': 'मक्का',
+  'Sugarcane': 'गन्ना',
+  'Grape': 'अंगूर',
+  'Mustard': 'सरसों',
+  'Soybean': 'सोयाबीन',
+  'Paddy': 'धान',
+  'Garlic': 'लहसुन',
+  'Ginger': 'अदरक'
+};
+
 export default function Saathi() {
   const { t, language } = useLanguage();
+  const { user } = useAuth();
+
   const [posts, setPosts] = useState([]);
   const [selectedDistrict, setSelectedDistrict] = useState('All Districts');
   const [loading, setLoading] = useState(true);
@@ -26,12 +51,22 @@ export default function Saathi() {
   const [commentInputs, setCommentInputs] = useState({});
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Per-card translation override toggle (e.g. { [postId]: 'hi' | 'en' })
+  const [cardLangOverrides, setCardLangOverrides] = useState({});
+
   // New post form state
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newDistrict, setNewDistrict] = useState('Nashik');
   const [newCropTag, setNewCropTag] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Auto-populate district from logged-in user profile if available
+  useEffect(() => {
+    if (user?.district) {
+      setNewDistrict(user.district);
+    }
+  }, [user]);
 
   const fetchPosts = () => {
     setLoading(true);
@@ -62,9 +97,41 @@ export default function Saathi() {
     }));
   };
 
+  const toggleCardLanguage = (postId, currentEffectiveLang) => {
+    setCardLangOverrides((prev) => ({
+      ...prev,
+      [postId]: currentEffectiveLang === 'hi' ? 'en' : 'hi'
+    }));
+  };
+
+  const getDistrictState = (districtName) => {
+    const found = ALL_INDIAN_DISTRICTS.find(
+      (d) => d.name.toLowerCase() === districtName.toLowerCase()
+    );
+    return found ? found.state : (user?.state || 'Maharashtra');
+  };
+
+  const formatAuthorName = (authorName) => {
+    if (!authorName) {
+      return language === 'hi' ? 'किसान मित्र' : 'Farmer Member';
+    }
+    // Check if authorName corresponds to the currently logged in user
+    if (user?.fullName) {
+      const cleanPostAuthor = authorName.replace(/\s*\((You|आप)\)\s*/gi, '').trim().toLowerCase();
+      const cleanUser = user.fullName.trim().toLowerCase();
+      if (cleanPostAuthor === cleanUser || authorName.toLowerCase().includes(cleanUser)) {
+        return `${user.fullName} (${language === 'hi' ? 'आप' : 'You'})`;
+      }
+    }
+    return authorName;
+  };
+
   const handleAddComment = async (postId) => {
     const text = commentInputs[postId];
     if (!text || !text.trim()) return;
+
+    // Use logged in user's full name, or fallback to friendly role
+    const authorName = user?.fullName?.trim() || (language === 'hi' ? 'किसान मित्र' : 'Farmer Member');
 
     try {
       const res = await fetch(`/api/posts/${postId}/comments`, {
@@ -72,7 +139,7 @@ export default function Saathi() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: text.trim(),
-          authorName: language === 'hi' ? 'रमेश पाटिल (आप)' : 'Ramesh Patil (You)'
+          authorName: authorName
         })
       });
 
@@ -101,6 +168,9 @@ export default function Saathi() {
     if (!newTitle.trim() || !newDesc.trim()) return;
 
     setSubmitting(true);
+    const authorName = user?.fullName?.trim() || (language === 'hi' ? 'किसान मित्र' : 'Farmer Member');
+    const stateName = getDistrictState(newDistrict);
+
     try {
       const res = await fetch('/api/posts', {
         method: 'POST',
@@ -109,9 +179,9 @@ export default function Saathi() {
           title: newTitle.trim(),
           description: newDesc.trim(),
           district: newDistrict,
-          state: newDistrict === 'Guntur' ? 'Andhra Pradesh' : newDistrict === 'Ludhiana' ? 'Punjab' : 'Maharashtra',
-          authorName: language === 'hi' ? 'रमेश पाटिल (आप)' : 'Ramesh Patil (You)',
-          cropTag: newCropTag.trim() || 'General'
+          state: stateName,
+          authorName: authorName,
+          cropTag: newCropTag.trim() || (language === 'hi' ? 'सामान्य' : 'General')
         })
       });
 
@@ -147,6 +217,16 @@ export default function Saathi() {
             <p className="text-xs sm:text-sm text-[#5C4533] mt-1">
               {t('saathiSubtitle')}
             </p>
+            {user && (
+              <div className="mt-2.5 inline-flex items-center space-x-1.5 text-xs text-[#4C7A3D] font-medium bg-[#EAF3E7]/80 px-2.5 py-1 rounded-lg border border-[#D1E6CC]">
+                <CheckCircle2 size={13} />
+                <span>
+                  {language === 'hi'
+                    ? `सक्रिय सदस्य: ${user.fullName} (${user.district || 'भारत'})`
+                    : `Active member: ${user.fullName} (${user.district || 'India'})`}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* New Post Button */}
@@ -205,28 +285,47 @@ export default function Saathi() {
         </div>
       )}
 
-      {/* Posts Feed Grid (Single column on mobile, 2-3 col grid on tablet/desktop) */}
+      {/* Posts Feed Grid */}
       {!loading && posts.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {posts.map((post) => {
             const isExpanded = !!expandedComments[post.id];
             const commentsCount = post.comments ? post.comments.length : 0;
 
+            // Determine effective language for this post card
+            const effectiveLang = cardLangOverrides[post.id] || language;
+            const isHi = effectiveLang === 'hi';
+
+            // Bilingual title, description, crop tag
+            const displayTitle = isHi
+              ? (post.titleHi && post.titleHi.trim() ? post.titleHi : post.title)
+              : (post.title && post.title.trim() ? post.title : post.titleHi);
+
+            const displayDesc = isHi
+              ? (post.descriptionHi && post.descriptionHi.trim() ? post.descriptionHi : post.description)
+              : (post.description && post.description.trim() ? post.description : post.descriptionHi);
+
+            const displayCropTag = isHi
+              ? (CROP_TRANSLATIONS[post.cropTag] || post.cropTag)
+              : post.cropTag;
+
+            const authorFormatted = formatAuthorName(post.authorName);
+
             return (
               <article
                 key={post.id}
-                className="bg-white rounded-3xl p-6 border border-[#E2D9CC] shadow-sm flex flex-col justify-between hover:shadow-md transition-all duration-300"
+                className="bg-white rounded-3xl p-6 border border-[#E2D9CC] shadow-sm flex flex-col justify-between hover:shadow-md transition-all duration-300 relative"
               >
                 <div>
-                  {/* Post Author & Location Header */}
+                  {/* Post Author, Location & Crop Header */}
                   <div className="flex items-center justify-between pb-3 border-b border-[#EFE8DC]">
                     <div className="flex items-center space-x-2.5">
                       <div className="w-10 h-10 rounded-2xl bg-[#EAF3E7] text-[#4C7A3D] font-bold flex items-center justify-center text-sm shadow-inner">
-                        {post.authorName ? post.authorName.charAt(0) : '👨‍🌾'}
+                        {authorFormatted ? authorFormatted.charAt(0) : '👨‍🌾'}
                       </div>
                       <div>
                         <h2 className="text-xs font-bold text-[#2C1E14]">
-                          {post.authorName}
+                          {authorFormatted}
                         </h2>
                         <span className="text-[11px] text-[#8A7463] flex items-center gap-1">
                           <MapPin size={11} className="text-[#C46A2B]" />
@@ -235,21 +334,36 @@ export default function Saathi() {
                       </div>
                     </div>
 
-                    {post.cropTag && (
-                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-[#FDF2E9] text-[#C46A2B] border border-[#F6DCC7]">
-                        {post.cropTag}
-                      </span>
-                    )}
+                    <div className="flex items-center space-x-1.5">
+                      {post.cropTag && (
+                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-[#FDF2E9] text-[#C46A2B] border border-[#F6DCC7]">
+                          {displayCropTag}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Post Title & Description */}
                   <div className="mt-4 space-y-2">
                     <h2 className="text-base font-bold text-[#6B4423] font-['Poppins'] leading-snug">
-                      {post.title}
+                      {displayTitle}
                     </h2>
                     <p className="text-xs sm:text-sm text-[#5C4533] leading-relaxed whitespace-pre-line">
-                      {post.description}
+                      {displayDesc}
                     </p>
+                  </div>
+
+                  {/* Card Inline Translation Switcher */}
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleCardLanguage(post.id, effectiveLang)}
+                      className="inline-flex items-center space-x-1 text-[11px] px-2.5 py-1 rounded-lg bg-[#F7F2E9] border border-[#DECDBE] text-[#6B4423] hover:text-[#4C7A3D] hover:border-[#4C7A3D] font-semibold transition-colors"
+                      title={isHi ? 'Translate back to English' : 'Translate post to Hindi'}
+                    >
+                      <Languages size={12} className="text-[#4C7A3D]" />
+                      <span>{isHi ? 'View English text' : 'हिंदी अनुवाद देखें'}</span>
+                    </button>
                   </div>
                 </div>
 
@@ -278,26 +392,33 @@ export default function Saathi() {
                     <div className="mt-3 pt-3 border-t border-[#DECDBE]/60 space-y-3 animate-fadeIn">
                       <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                         {post.comments && post.comments.length > 0 ? (
-                          post.comments.map((comment, cIdx) => (
-                            <div
-                              key={comment.id || cIdx}
-                              className="p-2.5 rounded-xl bg-[#F7F2E9] border border-[#DECDBE] text-xs space-y-1"
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="font-bold text-[#6B4423]">
-                                  {comment.authorName}
-                                </span>
-                                <span className="text-[10px] text-[#8A7463]">
-                                  {comment.createdAt
-                                    ? new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                                    : ''}
-                                </span>
+                          post.comments.map((comment, cIdx) => {
+                            const commentAuthor = formatAuthorName(comment.authorName);
+                            const commentText = isHi
+                              ? (comment.textHi && comment.textHi.trim() ? comment.textHi : comment.text)
+                              : (comment.text && comment.text.trim() ? comment.text : comment.textHi);
+
+                            return (
+                              <div
+                                key={comment.id || cIdx}
+                                className="p-2.5 rounded-xl bg-[#F7F2E9] border border-[#DECDBE] text-xs space-y-1"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="font-bold text-[#6B4423]">
+                                    {commentAuthor}
+                                  </span>
+                                  <span className="text-[10px] text-[#8A7463]">
+                                    {comment.createdAt
+                                      ? new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                      : ''}
+                                  </span>
+                                </div>
+                                <p className="text-[#3D2612] leading-relaxed">
+                                  {commentText}
+                                </p>
                               </div>
-                              <p className="text-[#3D2612] leading-relaxed">
-                                {comment.text}
-                              </p>
-                            </div>
-                          ))
+                            );
+                          })
                         ) : (
                           <p className="text-[11px] text-[#8A7463] text-center py-2">
                             {language === 'hi' ? 'अभी कोई टिप्पणी नहीं है। सबसे पहले जवाब दें!' : 'No replies yet. Be the first to advise!'}
@@ -364,9 +485,14 @@ export default function Saathi() {
                 <div className="w-8 h-8 rounded-xl bg-[#4C7A3D] text-white flex items-center justify-center">
                   <Plus size={18} />
                 </div>
-                <h2 className="text-lg font-bold text-[#6B4423] font-['Poppins']">
-                  {t('saathiNewPostBtn')}
-                </h2>
+                <div>
+                  <h2 className="text-lg font-bold text-[#6B4423] font-['Poppins']">
+                    {t('saathiNewPostBtn')}
+                  </h2>
+                  <p className="text-[11px] text-[#8A7463]">
+                    {language === 'hi' ? 'लेखक नाम' : 'Posting as'}: <span className="font-bold text-[#4C7A3D]">{user?.fullName || (language === 'hi' ? 'किसान मित्र' : 'Farmer Member')}</span>
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
@@ -432,7 +558,7 @@ export default function Saathi() {
                     type="text"
                     value={newCropTag}
                     onChange={(e) => setNewCropTag(e.target.value)}
-                    placeholder="e.g. Onion, Wheat"
+                    placeholder="e.g. Onion, Wheat, Tomato"
                     className="w-full px-3 py-2 rounded-xl border border-[#DECDBE] bg-white text-sm text-[#2C1E14] focus:outline-none focus:border-[#4C7A3D]"
                   />
                 </div>

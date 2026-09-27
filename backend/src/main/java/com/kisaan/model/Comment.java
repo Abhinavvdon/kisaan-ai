@@ -15,6 +15,9 @@ public class Comment {
     @Column(columnDefinition = "TEXT", nullable = false)
     private String text;
 
+    @Column(columnDefinition = "TEXT")
+    private String textHi;
+
     @Column(nullable = false)
     private String authorName;
 
@@ -28,7 +31,12 @@ public class Comment {
     public Comment() {}
 
     public Comment(String text, String authorName, Post post) {
+        this(text, null, authorName, post);
+    }
+
+    public Comment(String text, String textHi, String authorName, Post post) {
         this.text = text;
+        this.textHi = textHi;
         this.authorName = authorName;
         this.post = post;
         this.createdAt = LocalDateTime.now();
@@ -39,6 +47,9 @@ public class Comment {
 
     public String getText() { return text; }
     public void setText(String text) { this.text = text; }
+
+    public String getTextHi() { return textHi; }
+    public void setTextHi(String textHi) { this.textHi = textHi; }
 
     public String getAuthorName() { return authorName; }
     public void setAuthorName(String authorName) { this.authorName = authorName; }
