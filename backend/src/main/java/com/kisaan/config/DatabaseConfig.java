@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Primary;
 
 import javax.sql.DataSource;
 import java.net.URI;
+import java.sql.Connection;
 
 @Configuration
 public class DatabaseConfig {
@@ -20,24 +21,22 @@ public class DatabaseConfig {
     @Value("${DATABASE_URL:}")
     private String databaseUrl;
 
-    @Value("${spring.datasource.url:jdbc:h2:file:./data/kisaandb;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1}")
+    @Value("${spring.datasource.url:}")
     private String configuredUrl;
 
-    @Value("${spring.datasource.username:sa}")
+    @Value("${spring.datasource.username:postgres}")
     private String username;
 
-    @Value("${spring.datasource.password:}")
+    @Value("${spring.datasource.password:Abhinav12##@}")
     private String password;
 
-    @Value("${spring.datasource.driverClassName:org.h2.Driver}")
+    @Value("${spring.datasource.driverClassName:org.postgresql.Driver}")
     private String driverClassName;
 
     @Bean
     @Primary
     public DataSource dataSource() {
-        HikariConfig config = new HikariConfig();
-
-        // 1. If Render's DATABASE_URL is present (postgres://user:pass@host:port/dbname)
+        // 1. Check if Render's DATABASE_URL environment variable is provided
         if (databaseUrl != null && !databaseUrl.trim().isEmpty() &&
                 (databaseUrl.startsWith("postgres://") || databaseUrl.startsWith("postgresql://"))) {
             try {
@@ -55,30 +54,58 @@ public class DatabaseConfig {
                 String path = uri.getPath();
                 String jdbcUrl = "jdbc:postgresql://" + uri.getHost() + ":" + port + path;
 
+                HikariConfig config = new HikariConfig();
                 config.setJdbcUrl(jdbcUrl);
                 config.setUsername(dbUser);
                 config.setPassword(dbPassword);
                 config.setDriverClassName("org.postgresql.Driver");
                 config.setMaximumPoolSize(5);
                 config.setMinimumIdle(1);
+                config.setConnectionTimeout(10000);
                 config.setIdleTimeout(30000);
                 config.setMaxLifetime(60000);
-                log.info("Successfully configured PostgreSQL datasource: {}", jdbcUrl);
-                return new HikariDataSource(config);
+
+                HikariDataSource ds = new HikariDataSource(config);
+                try (Connection conn = ds.getConnection()) {
+                    log.info("Successfully connected to Render PostgreSQL: {}", jdbcUrl);
+                    return ds;
+                }
             } catch (Exception e) {
-                log.error("Failed to parse DATABASE_URL, falling back to default datasource: {}", e.getMessage());
+                log.error("Failed to connect via DATABASE_URL: {}. Attempting fallback.", e.getMessage());
             }
         }
 
-        // 2. Standard Spring Datasource (Local PostgreSQL or persistent H2 fallback)
-        log.info("Configuring default datasource: {}", configuredUrl);
-        config.setJdbcUrl(configuredUrl);
-        config.setUsername(username);
-        config.setPassword(password);
-        if (driverClassName != null && !driverClassName.trim().isEmpty()) {
-            config.setDriverClassName(driverClassName);
+        // 2. Try configuredUrl (Local PostgreSQL or specified URL)
+        if (configuredUrl != null && !configuredUrl.trim().isEmpty() && configuredUrl.contains("postgresql")) {
+            try {
+                log.info("Attempting connection to configured PostgreSQL: {}", configuredUrl);
+                HikariConfig config = new HikariConfig();
+                config.setJdbcUrl(configuredUrl);
+                config.setUsername(username);
+                config.setPassword(password);
+                config.setDriverClassName(driverClassName);
+                config.setMaximumPoolSize(5);
+                config.setConnectionTimeout(3000); // 3 sec quick check
+
+                HikariDataSource ds = new HikariDataSource(config);
+                try (Connection conn = ds.getConnection()) {
+                    log.info("Successfully connected to PostgreSQL at {}", configuredUrl);
+                    return ds;
+                }
+            } catch (Exception e) {
+                log.warn("PostgreSQL at {} is unreachable ({}). Activating embedded persistent database fallback.", configuredUrl, e.getMessage());
+            }
         }
-        config.setMaximumPoolSize(5);
-        return new HikariDataSource(config);
+
+        // 3. Resilient Embedded H2 Fallback (PostgreSQL compatibility mode)
+        // Ensures the application NEVER crashes on Render if external database is unavailable
+        log.info("Starting with embedded persistent H2 database in PostgreSQL compatibility mode (/app/data/kisaandb)...");
+        HikariConfig h2Config = new HikariConfig();
+        h2Config.setJdbcUrl("jdbc:h2:file:./data/kisaandb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1");
+        h2Config.setDriverClassName("org.h2.Driver");
+        h2Config.setUsername("sa");
+        h2Config.setPassword("");
+        h2Config.setMaximumPoolSize(5);
+        return new HikariDataSource(h2Config);
     }
 }
