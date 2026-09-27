@@ -391,7 +391,7 @@ export default function Scanner() {
               </div>
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider text-[#8A7463]">
-                  {t('scannerResultsTitle')} &bull; {selectedCrop.toUpperCase()}
+                  {t('scannerResultsTitle')} &bull; {(result.crop || selectedCrop).toUpperCase()}
                 </span>
                 <h2 className="text-xl sm:text-2xl font-bold text-[#6B4423] font-['Poppins']">
                   {result.healthy

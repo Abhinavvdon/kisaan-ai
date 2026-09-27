@@ -26,9 +26,10 @@ preprocess = transforms.Compose([
 ])
 
 
-def extract_deep_visual_embedding(image: Image.Image) -> np.ndarray:
+def extract_deep_visual_features(image: Image.Image) -> tuple[np.ndarray, np.ndarray]:
     """
-    Extracts deep convolutional features using MobileNetV3 backbone.
+    Extracts deep convolutional embeddings and ImageNet logit probabilities
+    using MobileNetV3 backbone.
     """
     with torch.no_grad():
         tensor = preprocess(image.convert("RGB")).unsqueeze(0).to(device)
@@ -40,7 +41,82 @@ def extract_deep_visual_embedding(image: Image.Image) -> np.ndarray:
         norm = np.linalg.norm(embedding)
         if norm > 0:
             embedding = embedding / norm
-        return embedding
+
+        logits = mobilenet.classifier(flattened)
+        probs = torch.softmax(logits, dim=1)[0].cpu().numpy()
+        return embedding, probs
+
+
+def detect_crop_species(image: Image.Image, embedding: np.ndarray, probs: np.ndarray) -> tuple[str, float]:
+    """
+    Two-stage agronomic species identifier. Fuses ImageNet semantic activations
+    with multi-spectral color and morphological biomarkers.
+    """
+    arr = np.array(image.convert("RGB"), dtype=np.float32)
+    h, w, _ = arr.shape
+    total_px = h * w
+    r, g, b = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2]
+
+    # Color & morphological features
+    red_fruit_mask = (r > 115) & (r > g * 1.20) & (r > b * 1.20) & (r - g > 20)
+    red_fruit_ratio = float(np.sum(red_fruit_mask) / total_px)
+
+    yellow_flower_mask = (r > 165) & (g > 155) & (b < 100) & (abs(r - g) < 45)
+    yellow_flower_ratio = float(np.sum(yellow_flower_mask) / total_px)
+
+    white_boll_mask = (r > 195) & (g > 195) & (b > 190)
+    white_boll_ratio = float(np.sum(white_boll_mask) / total_px)
+
+    purple_grape_mask = (r > 45) & (r < 130) & (b > r * 1.15) & (g < r * 0.95)
+    purple_grape_ratio = float(np.sum(purple_grape_mask) / total_px)
+
+    scores = {
+        "Tomato": 10.0,
+        "Wheat": 10.0,
+        "Rice": 10.0,
+        "Cotton": 10.0,
+        "Chilli": 10.0,
+        "Potato": 10.0,
+        "Corn": 10.0,
+        "Grape": 10.0,
+        "Sugarcane": 10.0,
+        "Apple": 10.0,
+        "Mango": 10.0,
+        "Soybean": 10.0,
+        "Mustard": 10.0,
+    }
+
+    # Deep semantic evidence from MobileNet
+    scores["Tomato"] += float(probs[989] * 150.0 + probs[990] * 90.0 + probs[945] * 40.0)
+    scores["Chilli"] += float(probs[945] * 130.0 + probs[989] * 25.0)
+    scores["Apple"] += float(probs[948] * 160.0 + probs[956] * 50.0)
+    scores["Corn"] += float(probs[987] * 150.0 + probs[998] * 50.0)
+    scores["Wheat"] += float(probs[998] * 90.0 + probs[202] * 30.0)
+
+    # Fruit & morphological constraints
+    if red_fruit_ratio > 0.04:
+        scores["Tomato"] += red_fruit_ratio * 450.0
+        scores["Chilli"] += red_fruit_ratio * 80.0
+        scores["Apple"] += red_fruit_ratio * 70.0
+        # Strict penalty for non-fleshy-red crops
+        for non_red in ["Sugarcane", "Wheat", "Rice", "Cotton", "Potato", "Mustard", "Soybean"]:
+            scores[non_red] *= 0.01
+
+    if yellow_flower_ratio > 0.03:
+        scores["Mustard"] += yellow_flower_ratio * 300.0
+
+    if white_boll_ratio > 0.04:
+        scores["Cotton"] += white_boll_ratio * 300.0
+
+    if purple_grape_ratio > 0.02:
+        scores["Grape"] += purple_grape_ratio * 300.0
+
+    sorted_crops = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    best_crop = sorted_crops[0][0]
+    total_score = sum(s for _, s in sorted_crops)
+    crop_conf = round((sorted_crops[0][1] / max(1e-5, total_score)) * 100.0, 1)
+
+    return best_crop, crop_conf
 
 
 def extract_leaf_metrics(image: Image.Image) -> dict:
@@ -100,14 +176,19 @@ def predict_pathology(image: Image.Image, crop_hint: str = None, language: str =
     """
     is_hindi = "hi" in language.lower() or "hindi" in language.lower()
     metrics = extract_leaf_metrics(image)
-    embedding = extract_deep_visual_embedding(image)
+    embedding, probs_imagenet = extract_deep_visual_features(image)
 
-    # Normalize crop hint
+    # Normalize crop hint & run Auto-Detection if requested
     clean_hint = (crop_hint or "").lower().strip()
-    if clean_hint in ["healthy", "स्वस्थ"]:
-        clean_hint = ""
+    is_auto = clean_hint in ["auto", "all", "", "none", "healthy", "स्वस्थ"]
 
-    # Filter eligible diseases by crop hint if provided
+    detected_crop = None
+    crop_conf = 0.0
+    if is_auto:
+        detected_crop, crop_conf = detect_crop_species(image, embedding, probs_imagenet)
+        clean_hint = detected_crop.lower()
+
+    # Filter eligible diseases by crop
     eligible_keys = []
     if clean_hint:
         for k, v in PLANT_PATHOLOGY_DATASET.items():
@@ -180,7 +261,11 @@ def predict_pathology(image: Image.Image, crop_hint: str = None, language: str =
     top_info = top_entries[0][2]
     action = top_info["action_hi"] if is_hindi else top_info["action_en"]
     organic = top_info["organic_hi"] if is_hindi else top_info["organic_en"]
-    crop_display = top_info["crop_hi"] if is_hindi else top_info["crop"]
+
+    if is_auto and detected_crop:
+        crop_display = f"{top_info['crop_hi']} (स्वतः पहचान)" if is_hindi else f"{top_info['crop']} (Auto-Detected)"
+    else:
+        crop_display = top_info["crop_hi"] if is_hindi else top_info["crop"]
 
     return {
         "crop": crop_display,

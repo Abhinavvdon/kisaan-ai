@@ -41,4 +41,6 @@ __pycache__/
 *.pt
 *.onnx
 ml-service/test_leaf.jpg
+ml-service/user_tomato_sample.jpg
+ml-service/*_sample*.jpg
 

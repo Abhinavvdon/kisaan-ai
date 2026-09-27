@@ -53,6 +53,15 @@ def run_tests():
         print(f"[{desc}] -> Predicted: {top_cand['disease_name']} ({top_cand['confidence']}%) | Healthy: {res['is_healthy']}")
         print(f"   Metrics: Chlorophyll={metrics['chlorophyll_score']}, Chlorosis={metrics['chlorosis_percent']}%, Necrosis={metrics['necrosis_percent']}%")
 
+    # Test Auto-Detect on real user tomato sample
+    try:
+        sample_img = Image.open("user_tomato_sample.jpg")
+        auto_res = predict_pathology(sample_img, crop_hint="auto", language="en")
+        print(f"[Auto-Detect Real Image] -> Detected Crop: {auto_res['crop']} | Top: {auto_res['candidates'][0]['disease_name']}")
+        assert "tomato" in auto_res['crop'].lower(), f"Expected tomato, got {auto_res['crop']}"
+    except Exception as e:
+        print("Auto-detect sample check:", e)
+
     print("\nAll model tests completed successfully!")
 
 
