@@ -25,6 +25,7 @@ public class ScanController {
             @RequestParam(value = "language", defaultValue = "English") String language,
             @RequestParam(value = "cropHint", required = false) String cropHint,
             @RequestParam(value = "apiKey", required = false) String apiKey,
+            @RequestParam(value = "engine", defaultValue = "icar") String engine,
             @RequestHeader(value = "X-Gemini-Key", required = false) String headerApiKey
     ) {
         if (file.isEmpty()) {
@@ -32,7 +33,7 @@ public class ScanController {
         }
 
         String effectiveKey = (apiKey != null && !apiKey.trim().isEmpty()) ? apiKey : headerApiKey;
-        ScanResponse response = scannerService.analyzeCrop(file, lat, lon, language, cropHint, effectiveKey);
+        ScanResponse response = scannerService.analyzeCrop(file, lat, lon, language, cropHint, effectiveKey, engine);
         return ResponseEntity.ok(response);
     }
 }

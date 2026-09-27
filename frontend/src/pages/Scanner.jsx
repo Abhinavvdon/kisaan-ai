@@ -176,6 +176,7 @@ export default function Scanner() {
     formData.append('lon', activeLon);
     formData.append('language', language === 'hi' ? 'hi' : 'en');
     formData.append('cropHint', selectedCrop);
+    formData.append('engine', 'icar');
     if (geminiApiKey) {
       formData.append('apiKey', geminiApiKey);
     }
@@ -229,9 +230,7 @@ export default function Scanner() {
             <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#EAF3E7] text-[#4C7A3D] border border-[#D1E6CC] mb-2">
               <Sparkles size={14} />
               <span>
-                {geminiApiKey
-                  ? '⚡ Google Gemini Multimodal Hybrid Active'
-                  : '🌿 Plant Pathology AI (Active - PlantVillage & ICAR Dataset) - 100% Free / Zero API Key Required'}
+                🌿 Plant Pathology AI (Active - PlantVillage & ICAR Dataset) - 100% Free / Zero API Key Required
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-[#6B4423] font-['Poppins']">
@@ -242,14 +241,14 @@ export default function Scanner() {
             </p>
           </div>
 
-          {/* Gemini API Key Configuration Button */}
+          {/* Gemini API Key Configuration Button (Optional Cloud Fallback) */}
           <button
             type="button"
             onClick={() => setIsKeyModalOpen(true)}
             className="self-start md:self-auto inline-flex items-center space-x-1.5 px-4 py-2.5 rounded-2xl bg-[#F7F2E9] hover:bg-[#EFE8DC] border border-[#DECDBE] text-[#6B4423] text-xs font-bold shadow-sm transition-all"
           >
             <Key size={14} className="text-[#C46A2B]" />
-            <span>{geminiApiKey ? 'Gemini Key Configured' : 'Configure Gemini API Key'}</span>
+            <span>{geminiApiKey ? 'Cloud Fallback Configured' : 'Optional Cloud Fallback Key'}</span>
           </button>
         </div>
 

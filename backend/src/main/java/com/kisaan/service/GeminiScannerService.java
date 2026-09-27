@@ -34,12 +34,10 @@ public class GeminiScannerService {
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // Fallback model chain specified in requirements
+    // Fallback model chain with current active Gemini models
     private final List<String> MODEL_CHAIN = Arrays.asList(
             "gemini-3.8-flash",
-            "gemini-2.5-flash",
-            "gemini-2.0-flash",
-            "gemini-1.5-flash",
+            "gemini-2.5-flash-lite",
             "gemini-flash-latest"
     );
 
@@ -50,41 +48,49 @@ public class GeminiScannerService {
 
     public ScanResponse analyzeCrop(MultipartFile file, double lat, double lon, String language,
                                     String cropHint, String clientApiKey) {
+        return analyzeCrop(file, lat, lon, language, cropHint, clientApiKey, "icar");
+    }
+
+    public ScanResponse analyzeCrop(MultipartFile file, double lat, double lon, String language,
+                                    String cropHint, String clientApiKey, String engine) {
         String targetLanguage = (language != null && language.equalsIgnoreCase("hi")) ? "Hindi (हिंदी)" : "English";
 
-        // Prioritize client-supplied API key from UI, then environment variable / application.properties
         String activeApiKey = (clientApiKey != null && !clientApiKey.trim().isEmpty())
                 ? clientApiKey.trim()
                 : configuredGeminiKey;
 
-        // Prompt structure required by specification
-        String prompt = String.format(
-                "Analyze this crop/plant image. Identify any visible disease, pest damage, " +
-                "or nutrient deficiency. Instead of a single definitive answer, return your " +
-                "top 2-3 most likely candidate diagnoses ranked by likelihood, each with its " +
-                "own confidence score (0-100) — do not force high confidence if the image is " +
-                "ambiguous. Return strict JSON with a 'candidates' array, where each entry has: " +
-                "disease_name, confidence (0-100), severity (mild/moderate/severe), and " +
-                "affected_area_description. Also include top-level fields: recommended_action " +
-                "and organic_alternative based on the highest-confidence candidate, and a " +
-                "boolean is_healthy if the plant appears healthy. Respond in %s.",
-                targetLanguage
-        );
-
         ScanResponse response = null;
 
-        // 1. If client provided custom Gemini key, execute Gemini LLM vision
-        if (activeApiKey != null && !activeApiKey.trim().isEmpty() && !activeApiKey.equals("YOUR_GEMINI_KEY")) {
+        // If user specifically requested Gemini cloud engine and has provided an API key
+        if ("gemini".equalsIgnoreCase(engine) && activeApiKey != null && !activeApiKey.trim().isEmpty() && !activeApiKey.equals("YOUR_GEMINI_KEY")) {
+            System.out.println("User explicitly requested Gemini Cloud Vision Engine.");
+            String prompt = buildPrompt(targetLanguage);
             response = executeWithModelFallback(file, prompt, activeApiKey);
         }
 
-        // 2. Primary Engine: Dedicated Python AI Microservice (PlantVillage + ICAR Dataset)
+        // 1. PRIMARY ENGINE: Dedicated In-House Python AI Microservice (PlantVillage + ICAR Dataset)
+        // High accuracy, zero API key required, 45+ crop pathology classes, multi-spectral ExG biomarkers
         if (response == null) {
-            response = callPythonAiService(file, cropHint, language);
+            try {
+                response = callPythonAiService(file, cropHint, language);
+                if (response != null && response.getCandidates() != null && !response.getCandidates().isEmpty()) {
+                    System.out.println("Diagnosed using In-House Python AI Microservice (PlantVillage & ICAR Dataset)");
+                }
+            } catch (Exception e) {
+                System.err.println("Python AI Microservice call error: " + e.getMessage());
+            }
         }
 
-        // 3. Fallback: Dynamic multi-crop pathology vision engine if AI microservice is offline
+        // 2. Secondary Fallback: Cloud Gemini LLM vision (only if Python microservice is offline AND valid API key is present)
+        if (response == null && activeApiKey != null && !activeApiKey.trim().isEmpty() && !activeApiKey.equals("YOUR_GEMINI_KEY")) {
+            System.out.println("Python AI microservice did not return result. Attempting Gemini cloud fallback...");
+            String prompt = buildPrompt(targetLanguage);
+            response = executeWithModelFallback(file, prompt, activeApiKey);
+        }
+
+        // 3. Tertiary Fallback: Dynamic multi-crop agronomic vision engine
         if (response == null) {
+            System.out.println("Attempting internal agronomic fallback engine...");
             response = dynamicMultiCropEngine(file, cropHint, targetLanguage);
         }
 
@@ -98,36 +104,60 @@ public class GeminiScannerService {
     }
 
     private ScanResponse callPythonAiService(MultipartFile file, String cropHint, String language) {
-        try {
-            String url = aiServiceUrl.replaceAll("/+$", "") + "/predict";
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-
-            org.springframework.util.MultiValueMap<String, Object> body = new org.springframework.util.LinkedMultiValueMap<>();
-
-            org.springframework.core.io.ByteArrayResource fileResource = new org.springframework.core.io.ByteArrayResource(file.getBytes()) {
-                @Override
-                public String getFilename() {
-                    return file.getOriginalFilename() != null ? file.getOriginalFilename() : "leaf.jpg";
-                }
-            };
-
-            body.add("file", fileResource);
-            if (cropHint != null && !cropHint.trim().isEmpty()) {
-                body.add("crop_hint", cropHint.trim());
-            }
-            body.add("language", (language != null && language.equalsIgnoreCase("hi")) ? "hi" : "en");
-
-            HttpEntity<org.springframework.util.MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-            ResponseEntity<String> res = restTemplate.postForEntity(url, requestEntity, String.class);
-
-            if (res.getStatusCode().is2xxSuccessful() && res.getBody() != null) {
-                return objectMapper.readValue(res.getBody(), ScanResponse.class);
-            }
-        } catch (Exception e) {
-            System.err.println("Python AI Microservice unavailable (" + e.getMessage() + "), using fallback.");
+        List<String> targetUrls = new ArrayList<>();
+        if (aiServiceUrl != null && !aiServiceUrl.trim().isEmpty()) {
+            targetUrls.add(aiServiceUrl.replaceAll("/+$", "") + "/predict");
         }
+        targetUrls.add("http://127.0.0.1:8088/predict");
+        targetUrls.add("http://localhost:8088/predict");
+
+        for (String url : targetUrls) {
+            try {
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+                org.springframework.util.MultiValueMap<String, Object> body = new org.springframework.util.LinkedMultiValueMap<>();
+
+                org.springframework.core.io.ByteArrayResource fileResource = new org.springframework.core.io.ByteArrayResource(file.getBytes()) {
+                    @Override
+                    public String getFilename() {
+                        return file.getOriginalFilename() != null ? file.getOriginalFilename() : "leaf.jpg";
+                    }
+                };
+
+                body.add("file", fileResource);
+                if (cropHint != null && !cropHint.trim().isEmpty()) {
+                    body.add("crop_hint", cropHint.trim());
+                }
+                body.add("language", (language != null && language.equalsIgnoreCase("hi")) ? "hi" : "en");
+
+                HttpEntity<org.springframework.util.MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+                ResponseEntity<String> res = restTemplate.postForEntity(url, requestEntity, String.class);
+
+                if (res.getStatusCode().is2xxSuccessful() && res.getBody() != null) {
+                    return objectMapper.readValue(res.getBody(), ScanResponse.class);
+                }
+            } catch (Exception e) {
+                // Try next endpoint if available
+            }
+        }
+        System.err.println("Python AI Microservice unavailable on configured endpoints, using fallback.");
         return null;
+    }
+
+    private String buildPrompt(String targetLanguage) {
+        return String.format(
+                "Analyze this crop/plant image. Identify any visible disease, pest damage, " +
+                "or nutrient deficiency. Instead of a single definitive answer, return your " +
+                "top 2-3 most likely candidate diagnoses ranked by likelihood, each with its " +
+                "own confidence score (0-100) — do not force high confidence if the image is " +
+                "ambiguous. Return strict JSON with a 'candidates' array, where each entry has: " +
+                "disease_name, confidence (0-100), severity (mild/moderate/severe), and " +
+                "affected_area_description. Also include top-level fields: recommended_action " +
+                "and organic_alternative based on the highest-confidence candidate, and a " +
+                "boolean is_healthy if the plant appears healthy. Respond in %s.",
+                targetLanguage
+        );
     }
 
     private ScanResponse executeWithModelFallback(MultipartFile file, String prompt, String apiKey) {
