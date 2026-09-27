@@ -16,6 +16,7 @@ public class Scheme {
     private String officialUrl;
     private List<String> applicableStates; // "All India", "Maharashtra", "Punjab", "Gujarat", etc.
     private boolean isNational;
+    private boolean isLiveFetched;
 
     public Scheme() {}
 
@@ -65,4 +66,6 @@ public class Scheme {
     public void setApplicableStates(List<String> applicableStates) { this.applicableStates = applicableStates; }
     public boolean isNational() { return isNational; }
     public void setNational(boolean national) { isNational = national; }
+    public boolean isLiveFetched() { return isLiveFetched; }
+    public void setLiveFetched(boolean liveFetched) { isLiveFetched = liveFetched; }
 }
